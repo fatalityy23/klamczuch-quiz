@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KłamczuchQuiz</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  :root {
+    --bg:#0f0f1a; --card:#1a1a2e; --accent:#e94560; --accent2:#16213e;
+    --text:#eaeaea; --muted:#888; --green:#2ecc71; --yellow:#f1c40f; --blue:#3498db;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:'Segoe UI',sans-serif; min-height:100vh; }
+  h1 { color:var(--accent); font-size:2rem; }
+  h2 { color:var(--yellow); font-size:1.4rem; margin-bottom:12px; }
+  h3 { color:var(--blue); font-size:1.1rem; margin-bottom:8px; }
+  .screen { display:none; padding:24px; max-width:960px; margin:0 auto; }
+  .screen.active { display:flex; flex-direction:column; gap:16px; }
+  .card { background:var(--card); border-radius:12px; padding:20px; }
+  input[type=text], input[type=password] {
+    background:#111; border:1px solid #333; color:var(--text);
+    padding:10px 14px; border-radius:8px; font-size:1rem; width:100%;
+  }
+  button {
+    background:var(--accent); color:#fff; border:none; border-radius:8px;
+    padding:10px 22px; font-size:1rem; cursor:pointer; transition:opacity .2s;
+  }
+  button:hover { opacity:.85; }
+  button:disabled { opacity:.35; cursor:not-allowed; }
+  .btn-green { background:var(--green); }
+  .btn-blue  { background:var(--blue); }
+  .btn-gray  { background:#444; }
+  .player-chip {
+    display:inline-flex; align-items:center; gap:6px;
+    background:var(--accent2); border-radius:20px; padding:6px 14px;
+    font-size:.9rem; margin:4px;
+  }
+  .player-chip.active { border:2px solid var(--yellow); }
+  .answer-tile {
+    background:#16213e; border-radius:8px; padding:10px 16px;
+    margin:6px 0; display:flex; justify-content:space-between; align-items:center;
+    animation:fadeIn .4s ease;
+  }
+  .answer-tile .pts { color:var(--yellow); font-weight:bold; font-size:1.1rem; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+  .timer-bar-wrap { background:#333; border-radius:6px; height:10px; overflow:hidden; }
+  .timer-bar { height:100%; background:var(--accent); transition:width 1s linear; border-radius:6px; }
+  .timer-bar.green { background:var(--green); }
+  .score-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #333; }
+  #game-layout { display:flex; gap:16px; }
+  #main-col { flex:1; display:flex; flex-direction:column; gap:16px; }
+  #liar-panel {
+    width:240px; background:#1a0a0a; border:2px solid var(--accent);
+    border-radius:12px; padding:16px; display:none; flex-shrink:0;
+  }
+  #liar-panel h3 { color:var(--accent); }
+  .liar-answer { padding:6px 0; font-size:.85rem; display:flex; justify-content:space-between; }
+  .liar-answer.revealed { color:var(--muted); text-decoration:line-through; }
+  .notification {
+    position:fixed; top:20px; left:50%; transform:translateX(-50%);
+    background:var(--card); border:2px solid var(--accent); border-radius:10px;
+    padding:14px 28px; font-size:1.1rem; z-index:999; display:none;
+  }
+  .notification.green { border-color:var(--green); color:var(--green); }
+  .notification.red   { border-color:var(--accent); color:var(--accent); }
+  #voting-grid { display:flex; flex-wrap:wrap; gap:12px; }
+  .vote-card {
+    background:var(--accent2); border:2px solid #333; border-radius:12px;
+    padding:14px 18px; cursor:pointer; transition:border-color .2s, background .2s;
+    min-width:150px; display:flex; flex-direction:column; gap:6px;
+  }
+  .vote-card:hover { border-color:var(--blue); }
+  .vote-card.selected { border-color:var(--accent); background:#2a0a1a; }
+  .vote-card .vname { font-weight:bold; font-size:1rem; }
+  .vote-card .vpoints { font-size:.8rem; }
+  .vote-card .vpoints .gain { color:var(--green); }
+  .vote-card .vpoints .loss { color:var(--accent); }
+  #powerup-btn {
+    background: linear-gradient(135deg, #f1c40f, #e67e22);
+    color:#111; font-weight:bold; font-size:1rem;
+    border:none; border-radius:10px; padding:12px 24px;
+    cursor:pointer; transition:opacity .2s, box-shadow .2s;
+    box-shadow: 0 0 16px rgba(241,196,15,0.5);
+  }
+  #powerup-btn:hover:not(:disabled) { box-shadow:0 0 24px rgba(241,196,15,0.8); }
+  #powerup-btn:disabled { background:#333; color:var(--muted); box-shadow:none; cursor:not-allowed; }
+  #discussion-timer { font-size:2.5rem; color:var(--yellow); font-weight:bold; text-align:center; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:10px; font-size:.75rem; font-weight:bold; }
+  .tag-caught { background:var(--green); color:#000; }
+  .tag-safe   { background:#555; }
+</style>
+</head>
+<body>
+<div class="notification" id="notification"></div>
+
+<!-- JOIN -->
+<div class="screen active" id="screen-join">
+  <div style="text-align:center; padding:40px 0 20px;">
+    <h1>🎭 KłamczuchQuiz</h1>
+    <p style="color:var(--muted); margin-top:8px;">Gra towarzyska z kłamczuchem</p>
+  </div>
+  <div class="card" style="max-width:400px; margin:0 auto; width:100%;">
+    <h3>Dołącz do gry</h3>
+    <input type="text" id="player-name" placeholder="Twoje imię..." maxlength="20" style="margin:12px 0;"/>
+    <button onclick="joinGame()">Dołącz →</button>
+    <p id="join-error" style="color:var(--accent); margin-top:8px; font-size:.9rem;"></p>
+  </div>
+</div>
+
+<!-- LOBBY -->
+<div class="screen" id="screen-lobby">
+  <h1>🎭 KłamczuchQuiz</h1>
+  <div class="card">
+    <h2>Poczekalnia</h2>
+    <p style="color:var(--muted); margin-bottom:12px;">Czekaj na hosta (admina), który uruchomi grę. Gracze (max 7):</p>
+    <div id="lobby-players"></div>
+  </div>
+</div>
+
+<!-- GAME -->
+<div class="screen" id="screen-game">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+    <h1>🎭 KłamczuchQuiz</h1>
+    <div style="color:var(--muted);">Runda <span id="round-num" style="color:var(--yellow); font-weight:bold;"></span> / <span id="round-total"></span></div>
+  </div>
+  <div id="game-layout">
+    <div id="main-col">
+      <div class="card">
+        <h2 id="question-text"></h2>
+        <div id="turn-info" style="margin:8px 0; padding:10px; background:#111; border-radius:8px;">
+          <span id="turn-name" style="color:var(--yellow); font-weight:bold;"></span>
+          <span id="turn-label" style="color:var(--muted);"></span>
+        </div>
+        <div id="timer-section" style="margin:10px 0;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+            <span id="timer-label" style="color:var(--muted); font-size:.85rem;"></span>
+            <span id="timer-count" style="color:var(--yellow); font-weight:bold;"></span>
+          </div>
+          <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar" style="width:100%"></div></div>
+        </div>
+        <div id="answer-section" style="display:none; margin-top:12px;">
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="answer-input" placeholder="Wpisz odpowiedź..." maxlength="60"/>
+            <button onclick="submitAnswer()" id="answer-btn">Wyślij</button>
+          </div>
+        </div>
+        <div id="reveal-msg" style="display:none; margin-top:10px; padding:10px; border-radius:8px; text-align:center; font-weight:bold; font-size:1.1rem;"></div>
+      </div>
+      <div class="card">
+        <h3>Kolejność w tej rundzie</h3>
+        <div id="round-order"></div>
+      </div>
+      <div class="card">
+        <h3>Odgadnięte odpowiedzi</h3>
+        <div id="revealed-answers"><p style="color:var(--muted);">Jeszcze nic nie odgadnięto.</p></div>
+      </div>
+    </div>
+    <div id="liar-panel">
+      <h3>🔴 Jesteś kłamczuchem!</h3>
+      <p style="font-size:.8rem; color:var(--muted); margin-bottom:10px;">Tylko Ty widzisz te odpowiedzi. Zmyl innych!</p>
+      <div id="liar-answers-list"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Punktacja</h3>
+    <div id="scoreboard"></div>
+  </div>
+</div>
+
+<!-- ROUND SUMMARY -->
+<div class="screen" id="screen-round-summary">
+  <h1>📊 Koniec rundy <span id="rs-round"></span></h1>
+  <div class="card">
+    <h2>Wszystkie odpowiedzi</h2>
+    <div id="rs-all-answers"></div>
+  </div>
+  <div class="card">
+    <h2>Punktacja po rundzie</h2>
+    <div id="rs-scoreboard"></div>
+  </div>
+  <div class="card" style="background:#1a0a1a; text-align:center;">
+    <h2 style="color:var(--accent);">🗳️ Czas dyskusji i głosowania!</h2>
+    <p style="color:var(--muted);">Admin uruchomi za chwilę głosowanie. Kto jest kłamczuchem?</p>
+  </div>
+</div>
+
+<!-- VOTING -->
+<div class="screen" id="screen-voting">
+  <h1>🗳️ Głosowanie</h1>
+  <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+    <div class="card" style="flex:1; min-width:260px;">
+      <h2>Kto jest kłamczuchem?</h2>
+      <div id="discussion-timer">60</div>
+      <p style="color:var(--muted); text-align:center; font-size:.85rem; margin-top:6px;">sekund na dyskusję i głosowanie</p>
+    </div>
+    <div class="card" style="min-width:220px; background:#1a1a0a; border:2px solid var(--yellow);">
+      <h3 style="color:var(--yellow);">⚡ Powerup x2</h3>
+      <p style="font-size:.82rem; color:var(--muted); margin-bottom:12px;">Podwaja zysk/stratę punktów za głosowanie. Użyj raz na całą grę.</p>
+      <button id="powerup-btn" onclick="usePowerup()">⚡ Aktywuj x2</button>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Zagłosuj — kliknij gracza:</h3>
+    <p style="color:var(--muted); font-size:.82rem; margin-bottom:12px;">Widzisz możliwe zmiany punktów przy każdym graczu.</p>
+    <div id="voting-grid"></div>
+    <p id="vote-status" style="color:var(--muted); margin-top:12px; font-size:.85rem;"></p>
+  </div>
+  <div class="card">
+    <h3>Głosy (na bieżąco)</h3>
+    <div id="vote-tally"></div>
+  </div>
+</div>
+
+<!-- FINAL -->
+<div class="screen" id="screen-final">
+  <h1>🏆 Koniec gry!</h1>
+  <div class="card">
+    <h2>Końcowa punktacja</h2>
+    <div id="final-scoreboard"></div>
+  </div>
+  <div class="card">
+    <h2>Historia kłamczuchów</h2>
+    <div id="liar-history"></div>
+  </div>
+</div>
+
+<script>
+const socket = io();
+let myId = null;
+let myName = null;
+let lastPhase = null;
+let timerInterval = null;
+let myVote = null;
+let powerupActivated = false;
+
+socket.on('connect', () => { myId = socket.id; });
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function notify(msg, type='') {
+  const el = document.getElementById('notification');
+  el.textContent = msg;
+  el.className = 'notification ' + type;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 3500);
+}
+
+function joinGame() {
+  const name = document.getElementById('player-name').value.trim();
+  if (!name) { document.getElementById('join-error').textContent = 'Wpisz imię!'; return; }
+  myName = name;
+  socket.emit('joinGame', { name });
+}
+
+socket.on('error', msg => {
+  document.getElementById('join-error').textContent = msg;
+  notify(msg, 'red');
+});
+
+socket.on('state', s => renderState(s));
+
+function renderState(s) {
+  const phase = s.phase;
+
+  if (phase === 'lobby') {
+    showScreen('screen-lobby');
+    const c = document.getElementById('lobby-players');
+    c.innerHTML = '';
+    s.players.forEach(p => {
+      const chip = document.createElement('span');
+      chip.className = 'player-chip';
+      chip.textContent = p.name;
+      c.appendChild(chip);
+    });
+  }
+
+  if (phase === 'round') {
+    showScreen('screen-game');
+    document.getElementById('round-num').textContent = s.currentRound;
+    document.getElementById('round-total').textContent = s.totalRounds;
+    document.getElementById('question-text').textContent = s.questionText;
+
+    const liarPanel = document.getElementById('liar-panel');
+    if (s.liarAnswers) {
+      liarPanel.style.display = 'block';
+      const list = document.getElementById('liar-answers-list');
+      list.innerHTML = '';
+      const revIdxs = (s.revealedAnswers || []).map(r => r.index);
+      s.liarAnswers.forEach((a, i) => {
+        const div = document.createElement('div');
+        div.className = 'liar-answer' + (revIdxs.includes(i) ? ' revealed' : '');
+        div.innerHTML = `<span>${a.text}</span><span style="color:var(--yellow)">${a.points}pkt</span>`;
+        list.appendChild(div);
+      });
+    } else {
+      liarPanel.style.display = 'none';
+    }
+
+    const orderEl = document.getElementById('round-order');
+    orderEl.innerHTML = '';
+    (s.roundOrder || []).forEach((p, i) => {
+      const chip = document.createElement('span');
+      chip.className = 'player-chip' + (p.id === s.currentPlayerId ? ' active' : '');
+      chip.textContent = (i+1) + '. ' + p.name;
+      orderEl.appendChild(chip);
+    });
+
+    const cp = s.roundOrder?.find(p => p.id === s.currentPlayerId);
+    document.getElementById('turn-name').textContent = cp ? cp.name : '';
+    document.getElementById('turn-label').textContent = cp ? ' odpowiada...' : 'Runda zakończona';
+
+    const isMyTurn = s.currentPlayerId === myId;
+    document.getElementById('answer-section').style.display = isMyTurn ? 'block' : 'none';
+    if (isMyTurn && lastPhase !== 'round') document.getElementById('answer-input').value = '';
+
+    const revEl = document.getElementById('revealed-answers');
+    if (s.revealedAnswers && s.revealedAnswers.length > 0) {
+      revEl.innerHTML = '';
+      s.revealedAnswers.forEach(r => {
+        const tile = document.createElement('div');
+        tile.className = 'answer-tile';
+        tile.innerHTML = `<span>${r.text} <span style="color:var(--muted);font-size:.8rem">– ${r.byName}</span></span><span class="pts">${r.points} pkt</span>`;
+        revEl.appendChild(tile);
+      });
+    } else {
+      revEl.innerHTML = '<p style="color:var(--muted);">Jeszcze nic nie odgadnięto.</p>';
+    }
+
+    renderScoreboard('scoreboard', s.players);
+  }
+
+  if (phase === 'roundSummary') {
+    showScreen('screen-round-summary');
+    document.getElementById('rs-round').textContent = s.currentRound;
+    const allEl = document.getElementById('rs-all-answers');
+    allEl.innerHTML = '';
+    if (s.allAnswers) {
+      s.allAnswers.forEach((a, i) => {
+        const rev = s.revealedAnswers?.find(r => r.index === i);
+        const tile = document.createElement('div');
+        tile.className = 'answer-tile';
+        tile.style.opacity = rev ? '1' : '0.5';
+        tile.innerHTML = `<span>${a.text} ${rev
+          ? `<span style="color:var(--muted);font-size:.8rem">✓ ${rev.byName}</span>`
+          : '<span style="color:var(--muted);font-size:.8rem">– nie odgadnięto</span>'}</span>
+          <span class="pts">${a.points} pkt</span>`;
+        allEl.appendChild(tile);
+      });
+    }
+    renderScoreboard('rs-scoreboard', s.players);
+  }
+
+  if (phase === 'voting') {
+    showScreen('screen-voting');
+    const puBtn = document.getElementById('powerup-btn');
+    powerupActivated = s.myPowerupUsed || false;
+    puBtn.disabled = powerupActivated;
+    puBtn.textContent = powerupActivated ? '⚡ Użyto' : '⚡ Aktywuj x2';
+
+    const grid = document.getElementById('voting-grid');
+    grid.innerHTML = '';
+    const pts = s.myVotingPoints || { gain: 0, loss: 0 };
+
+    s.players.forEach(p => {
+      if (p.id === myId) return;
+      const card = document.createElement('div');
+      card.className = 'vote-card' + (myVote === p.id ? ' selected' : '');
+      card.innerHTML = `
+        <span class="vname">${p.name}</span>
+        <span class="vpoints">
+          <span class="gain">+${pts.gain} pkt jeśli kłamczuch</span><br>
+          <span class="loss">–${pts.loss} pkt jeśli nie</span>
+        </span>`;
+      card.onclick = () => {
+        myVote = p.id;
+        socket.emit('vote', { votedId: p.id });
+        document.querySelectorAll('.vote-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+      };
+      grid.appendChild(card);
+    });
+
+    const tallyEl = document.getElementById('vote-tally');
+    if (s.votes) {
+      const tally = {};
+      s.players.forEach(p => { tally[p.id] = { name: p.name, count: 0 }; });
+      Object.values(s.votes).forEach(vid => { if (tally[vid]) tally[vid].count++; });
+      tallyEl.innerHTML = '';
+      s.players.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'score-row';
+        row.innerHTML = `<span>${p.name}</span><span style="color:var(--yellow)">${tally[p.id]?.count || 0} głosów</span>`;
+        tallyEl.appendChild(row);
+      });
+    }
+    const voted = s.votes ? Object.keys(s.votes).length : 0;
+    document.getElementById('vote-status').textContent = `Zagłosowało: ${voted} / ${s.players.length}`;
+  }
+
+  if (phase === 'finalSummary') {
+    showScreen('screen-final');
+    const sorted = [...s.players].sort((a,b) => b.score - a.score);
+    const fsEl = document.getElementById('final-scoreboard');
+    fsEl.innerHTML = '';
+    sorted.forEach((p, i) => {
+      const row = document.createElement('div');
+      row.className = 'score-row';
+      row.innerHTML = `<span>${i+1}. ${p.name}</span><span style="color:var(--yellow); font-weight:bold">${p.score} pkt</span>`;
+      fsEl.appendChild(row);
+    });
+
+    const histEl = document.getElementById('liar-history');
+    histEl.innerHTML = '';
+    (s.liarHistory || []).forEach(h => {
+      const row = document.createElement('div');
+      row.className = 'score-row';
+      row.innerHTML = `<span>Runda ${h.round}: <strong>${h.liarName}</strong></span>
+        <span class="tag ${h.caught ? 'tag-caught' : 'tag-safe'}">${h.caught ? '✓ Wykryty' : '✗ Niewyryty'}</span>`;
+      histEl.appendChild(row);
+    });
+  }
+
+  lastPhase = phase;
+}
+
+socket.on('timerStart', ({ duration, phase, correct, message }) => {
+  clearInterval(timerInterval);
+  const bar    = document.getElementById('timer-bar');
+  const count  = document.getElementById('timer-count');
+  const label  = document.getElementById('timer-label');
+  const revMsg = document.getElementById('reveal-msg');
+  const ansSection = document.getElementById('answer-section');
+
+  if (phase === 'answer') {
+    revMsg.style.display = 'none';
+    label.textContent = 'Czas na odpowiedź:';
+    bar.className = 'timer-bar';
+    let t = duration; count.textContent = t; bar.style.width = '100%';
+    timerInterval = setInterval(() => {
+      t--; count.textContent = t;
+      bar.style.width = (t / duration * 100) + '%';
+      if (t <= 0) clearInterval(timerInterval);
+    }, 1000);
+  } else if (phase === 'reveal') {
+    ansSection.style.display = 'none';
+    revMsg.style.display = 'block';
+    revMsg.textContent = message;
+    revMsg.style.background = correct ? '#0d3d20' : '#3d0d0d';
+    revMsg.style.color = correct ? '#2ecc71' : '#e94560';
+    bar.className = 'timer-bar green';
+    let t = duration; count.textContent = t; label.textContent = 'Następna osoba za:'; bar.style.width = '100%';
+    timerInterval = setInterval(() => {
+      t--; count.textContent = t;
+      bar.style.width = (t / duration * 100) + '%';
+      if (t <= 0) clearInterval(timerInterval);
+    }, 1000);
+  }
+});
+
+socket.on('votingTimer', ({ timeLeft }) => {
+  const el = document.getElementById('discussion-timer');
+  el.textContent = timeLeft;
+  el.style.color = timeLeft <= 10 ? 'var(--accent)' : 'var(--yellow)';
+});
+
+function renderScoreboard(elId, players) {
+  const el = document.getElementById(elId);
+  el.innerHTML = '';
+  [...players].sort((a,b) => b.score - a.score).forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'score-row';
+    row.innerHTML = `<span>${i+1}. ${p.name} ${p.id === myId ? '<span style="color:var(--muted);font-size:.8rem">(Ty)</span>' : ''}</span>
+      <span style="color:var(--yellow); font-weight:bold">${p.score} pkt</span>`;
+    el.appendChild(row);
+  });
+}
+
+function submitAnswer() {
+  const input = document.getElementById('answer-input');
+  const val = input.value.trim();
+  if (!val) return;
+  socket.emit('submitAnswer', { answer: val });
+  input.value = '';
+  const btn = document.getElementById('answer-btn');
+  btn.disabled = true;
+  setTimeout(() => { btn.disabled = false; }, 1000);
+}
+
+function usePowerup() {
+  if (powerupActivated) return;
+  socket.emit('usePowerup');
+  powerupActivated = true;
+}
+
+document.getElementById('answer-input')?.addEventListener('keydown', e => { if(e.key==='Enter') submitAnswer(); });
+document.getElementById('player-name')?.addEventListener('keydown', e => { if(e.key==='Enter') joinGame(); });
+</script>
+</body>
+</html>

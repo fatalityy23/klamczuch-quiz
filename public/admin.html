@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin – KłamczuchQuiz</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  :root { --bg:#0f0f1a; --card:#1a1a2e; --accent:#e94560; --text:#eaeaea; --muted:#888; --green:#2ecc71; --yellow:#f1c40f; --blue:#3498db; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:'Segoe UI',sans-serif; padding:20px; }
+  h1 { color:var(--accent); margin-bottom:16px; }
+  h2 { color:var(--yellow); margin-bottom:10px; }
+  h3 { color:var(--blue); margin-bottom:8px; }
+  .card { background:var(--card); border-radius:12px; padding:20px; margin-bottom:16px; }
+  input[type=text], input[type=password] {
+    background:#111; border:1px solid #333; color:var(--text);
+    padding:8px 12px; border-radius:8px; font-size:.95rem; width:100%;
+  }
+  button { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:9px 20px; font-size:.95rem; cursor:pointer; margin:4px 2px; }
+  button:hover { opacity:.85; }
+  .btn-green { background:var(--green); }
+  .btn-blue  { background:var(--blue); }
+  .btn-gray  { background:#444; }
+  .q-block { border:1px solid #333; border-radius:10px; padding:14px; margin-bottom:12px; }
+  .a-row { display:flex; gap:8px; align-items:center; margin:6px 0; }
+  .a-row input:first-child { flex:1; }
+  .a-row input:last-child { width:70px; }
+  .player-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #333; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:10px; font-size:.75rem; font-weight:bold; }
+  .tag-liar { background:var(--accent); }
+  .tag-caught { background:var(--green); color:#000; }
+  .tag-safe { background:#555; }
+  #login-screen { max-width:400px; margin:80px auto; }
+  #main { display:none; max-width:960px; margin:0 auto; }
+</style>
+</head>
+<body>
+<div id="login-screen" class="card">
+  <h1>🔐 Panel Admina</h1>
+  <p style="color:var(--muted); margin-bottom:16px;">Zaloguj się by zarządzać grą.</p>
+  <input type="password" id="pwd" placeholder="Hasło admina..." style="margin-bottom:10px;"/>
+  <button onclick="adminLogin()">Zaloguj się</button>
+  <p id="login-err" style="color:var(--accent); margin-top:8px;"></p>
+</div>
+
+<div id="main">
+  <h1>🎭 KłamczuchQuiz – Panel Admina</h1>
+
+  <div class="card">
+    <h2>Status gry</h2>
+    <div id="game-status" style="margin-bottom:12px;"></div>
+    <div id="admin-actions"></div>
+  </div>
+
+  <div class="card">
+    <h2>Gracze</h2>
+    <div id="players-list"><p style="color:var(--muted);">Brak graczy.</p></div>
+  </div>
+
+  <div class="card" id="voting-card" style="display:none;">
+    <h2>🗳️ Głosowanie</h2>
+    <div id="admin-votes" style="margin-bottom:12px;"></div>
+    <button class="btn-green" onclick="socket.emit('startVoting')" id="btn-start-voting">▶ Uruchom głosowanie</button>
+  </div>
+
+  <div class="card">
+    <h2>📜 Historia kłamczuchów</h2>
+    <div id="admin-liar-history"><p style="color:var(--muted);">Brak historii.</p></div>
+  </div>
+
+  <div class="card">
+    <h2>✏️ Edytor pytań</h2>
+    <p style="color:var(--muted); margin-bottom:12px; font-size:.85rem;">Edytuj przed startem gry. Po uruchomieniu zmiany są zablokowane.</p>
+    <div id="questions-editor"></div>
+    <button class="btn-green" onclick="saveQuestions()">💾 Zapisz pytania</button>
+    <p id="save-status" style="color:var(--green); margin-top:8px; font-size:.85rem;"></p>
+  </div>
+</div>
+
+<script>
+const socket = io();
+let adminPwd = '';
+
+function adminLogin() {
+  const pwd = document.getElementById('pwd').value;
+  fetch('/admin/login', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ password: pwd })
+  }).then(r=>r.json()).then(d => {
+    if (d.ok) {
+      adminPwd = pwd;
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('main').style.display = 'block';
+      socket.emit('joinAdmin');
+      loadQuestions();
+    } else {
+      document.getElementById('login-err').textContent = 'Błędne hasło!';
+    }
+  });
+}
+document.getElementById('pwd').addEventListener('keydown', e => { if(e.key==='Enter') adminLogin(); });
+
+socket.on('adminJoined', ({ questions }) => renderQuestionsEditor(questions));
+socket.on('state', s => renderAdminState(s));
+
+function renderAdminState(s) {
+  const phaseMap = {
+    lobby:'🟡 Poczekalnia', round:'🟢 Runda w toku',
+    roundSummary:'🔵 Podsumowanie rundy', voting:'🔴 Głosowanie', finalSummary:'🏆 Koniec gry'
+  };
+  const liarName = s.liarId ? (s.players.find(p=>p.id===s.liarId)?.name || '?') : '–';
+  document.getElementById('game-status').innerHTML = `
+    <div style="font-size:1.1rem; margin-bottom:8px;">${phaseMap[s.phase] || s.phase}</div>
+    <div style="color:var(--muted); font-size:.9rem;">Runda: ${s.currentRound} / ${s.totalRounds}</div>
+    <div style="margin-top:6px;">Kłamczuch: <strong style="color:var(--accent)">${liarName}</strong></div>`;
+
+  const actEl = document.getElementById('admin-actions');
+  actEl.innerHTML = '';
+
+  if (s.phase === 'lobby') {
+    btn(actEl, '▶ Uruchom grę', 'btn-green', () => socket.emit('startGame'));
+    btn(actEl, '🔄 Reset', 'btn-gray', () => socket.emit('resetGame'));
+  }
+  if (s.phase === 'roundSummary') {
+    document.getElementById('voting-card').style.display = 'block';
+    document.getElementById('btn-start-voting').style.display = 'inline-block';
+    btn(actEl, s.currentRound >= s.totalRounds ? '🏁 Zakończ grę' : '⏭ Następna runda', 'btn-blue', () => socket.emit('startNextRound'));
+  }
+  if (s.phase === 'voting') {
+    document.getElementById('voting-card').style.display = 'block';
+    document.getElementById('btn-start-voting').style.display = 'none';
+    renderAdminVotes(s);
+  }
+  if (!['roundSummary','voting'].includes(s.phase)) {
+    document.getElementById('voting-card').style.display = 'none';
+  }
+  if (s.phase === 'finalSummary') {
+    btn(actEl, '🔄 Nowa gra', 'btn-gray', () => socket.emit('resetGame'));
+  }
+
+  const plEl = document.getElementById('players-list');
+  plEl.innerHTML = '';
+  if (!s.players.length) { plEl.innerHTML = '<p style="color:var(--muted);">Brak graczy.</p>'; }
+  else s.players.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'player-row';
+    row.innerHTML = `<span>${p.name} ${s.liarId===p.id ? '<span class="tag tag-liar">KŁAMCZUCH</span>' : ''}</span>
+      <span style="color:var(--yellow)">${p.score} pkt</span>`;
+    plEl.appendChild(row);
+  });
+
+  const histEl = document.getElementById('admin-liar-history');
+  histEl.innerHTML = '';
+  if (s.liarHistory && s.liarHistory.length) {
+    s.liarHistory.forEach(h => {
+      const row = document.createElement('div');
+      row.className = 'player-row';
+      row.innerHTML = `<span>Runda ${h.round}: <strong>${h.liarName}</strong></span>
+        <span class="tag ${h.caught ? 'tag-caught' : 'tag-safe'}">${h.caught ? '✓ Wykryty' : '✗ Niewyryty'}</span>`;
+      histEl.appendChild(row);
+    });
+  } else {
+    histEl.innerHTML = '<p style="color:var(--muted);">Brak historii.</p>';
+  }
+}
+
+function btn(parent, text, cls, fn) {
+  const b = document.createElement('button');
+  b.className = cls; b.textContent = text; b.onclick = fn;
+  parent.appendChild(b);
+}
+
+function renderAdminVotes(s) {
+  const el = document.getElementById('admin-votes');
+  el.innerHTML = '<h3>Aktualne głosy:</h3>';
+  if (s.votes && s.players) {
+    const tally = {};
+    s.players.forEach(p => { tally[p.id] = { name: p.name, count: 0 }; });
+    Object.values(s.votes).forEach(vid => { if (tally[vid]) tally[vid].count++; });
+    Object.values(tally).forEach(t => {
+      const row = document.createElement('div');
+      row.className = 'player-row';
+      row.innerHTML = `<span>${t.name}</span><span style="color:var(--yellow)">${t.count} głosów</span>`;
+      el.appendChild(row);
+    });
+  }
+}
+
+function loadQuestions() {
+  fetch('/admin/questions').then(r=>r.json()).then(q => renderQuestionsEditor(q));
+}
+
+function renderQuestionsEditor(questions) {
+  const el = document.getElementById('questions-editor');
+  el.innerHTML = '';
+  questions.forEach((q, qi) => {
+    const block = document.createElement('div');
+    block.className = 'q-block';
+    block.innerHTML = `<div style="margin-bottom:8px;"><strong style="color:var(--yellow);">Pytanie ${qi+1}</strong></div>
+      <input type="text" value="${esc(q.text)}" id="q-text-${qi}" style="margin-bottom:10px;" placeholder="Treść pytania..."/>
+      <div id="q-answers-${qi}"></div>`;
+    el.appendChild(block);
+    const aEl = document.getElementById(`q-answers-${qi}`);
+    q.answers.forEach((a, ai) => {
+      const row = document.createElement('div');
+      row.className = 'a-row';
+      row.innerHTML = `<span style="color:var(--muted); min-width:20px; font-size:.85rem;">${ai+1}.</span>
+        <input type="text" value="${esc(a.text)}" id="a-text-${qi}-${ai}" placeholder="Odpowiedź..."/>
+        <input type="number" value="${a.points}" id="a-pts-${qi}-${ai}" min="1" max="100" placeholder="pkt"/>`;
+      aEl.appendChild(row);
+    });
+  });
+}
+
+function saveQuestions() {
+  const questions = [];
+  document.querySelectorAll('.q-block').forEach((block, qi) => {
+    const text = document.getElementById(`q-text-${qi}`).value.trim();
+    const answers = [];
+    for (let ai = 0; ai < 10; ai++) {
+      const tEl = document.getElementById(`a-text-${qi}-${ai}`);
+      const pEl = document.getElementById(`a-pts-${qi}-${ai}`);
+      if (tEl && pEl) answers.push({ text: tEl.value.trim(), points: parseInt(pEl.value) || 0 });
+    }
+    questions.push({ text, answers });
+  });
+  fetch('/admin/questions', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ password: adminPwd, questions })
+  }).then(r=>r.json()).then(d => {
+    const st = document.getElementById('save-status');
+    st.textContent = d.ok ? '✓ Pytania zapisane!' : 'Błąd: ' + (d.msg||'');
+    setTimeout(() => { st.textContent = ''; }, 3000);
+  });
+}
+
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
