@@ -32,7 +32,7 @@
   <div class="card">
     <h2>Status: <span id="status-phase" style="color:var(--blue)"></span></h2>
     <div id="admin-controls">
-      <button class="btn-green" id="start-btn" onclick="socket.emit('startGame')">▶ Start Gry</button>
+      <button class="btn-green" onclick="socket.emit('startGame')">▶ Start Gry</button>
       <button class="btn-blue" id="pause-btn" onclick="socket.emit('togglePause')">⏸ Pauza</button>
       <button class="btn-gray" onclick="if(confirm('Zresetować grę?')) socket.emit('stopGame')">⏹ Stop / Reset</button>
       <button class="btn-blue" onclick="socket.emit('startNextRound')">⏭ Następna Runda</button>
@@ -48,7 +48,7 @@
 
   <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
     <div class="card">
-      <h3>Podgląd Pytań (Live)</h3>
+      <h3>Lista odpowiedzi (Live)</h3>
       <div id="answers-preview"></div>
     </div>
     <div class="card">
@@ -74,18 +74,22 @@ function adminLogin() {
 
 socket.on('state', s => {
   document.getElementById('status-phase').textContent = s.phase + (s.isPaused ? ' (PAUZA)' : '');
-  document.getElementById('pause-btn').textContent = s.isPaused ? '▶ Wznów' : '⏸ Pauza';
+  const pauseBtn = document.getElementById('pause-btn');
+  pauseBtn.textContent = s.isPaused ? '▶ Wznów' : '⏸ Pauza';
+  pauseBtn.style.background = s.isPaused ? 'var(--green)' : 'var(--blue)';
+  
   document.getElementById('liar-name').textContent = s.liarName || 'Brak';
-  document.getElementById('start-btn').style.display = s.phase === 'lobby' ? 'inline-block' : 'none';
 
   const preview = document.getElementById('answers-preview');
   preview.innerHTML = '';
   if (s.allAnswers) {
     s.allAnswers.forEach((a, i) => {
       const isRev = s.revealedAnswers?.some(r => r.index === i);
-      preview.innerHTML += `<div class="player-row" style="color:${isRev ? 'var(--green)' : '#888'}">
-        <span>${i+1}. ${a.text}</span><span>${a.points} pkt</span>
-      </div>`;
+      preview.innerHTML += `
+        <div class="player-row" style="color:${isRev ? 'var(--green)' : '#777'}">
+          <span>${i+1}. ${a.text}</span>
+          <span>${a.points} pkt</span>
+        </div>`;
     });
   }
 
@@ -103,7 +107,7 @@ socket.on('state', s => {
     const sel = document.getElementById('override-select');
     sel.innerHTML = '<option value="">-- Wybierz poprawną --</option>';
     s.allAnswers.forEach((a, i) => {
-      if(!s.revealedAnswers.some(r => r.index === i)) {
+      if(!s.revealedAnswers?.some(r => r.index === i)) {
         sel.innerHTML += `<option value="${i}">${a.text} (${a.points})</option>`;
       }
     });
