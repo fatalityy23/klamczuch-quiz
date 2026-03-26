@@ -7,53 +7,59 @@
 <script src="/socket.io/socket.io.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#0f0f1a; --card:#1a1a2e; --accent:#e94560; --text:#eaeaea; --muted:#888; --green:#2ecc71; --yellow:#f1c40f; --blue:#3498db; }
+  :root { --bg:#0f0f1a; --card:#1a1a2e; --accent:#e94560; --text:#eaeaea; --green:#2ecc71; --blue:#3498db; }
   * { box-sizing:border-box; margin:0; padding:0; font-family:'Poppins', sans-serif; }
   body { background:var(--bg); color:var(--text); padding:20px; }
-  h1, h2, h3 { margin-bottom:12px; }
   .card { background:var(--card); border-radius:12px; padding:20px; margin-bottom:16px; border:1px solid #333; }
-  input[type=password] { background:#111; border:1px solid #333; color:var(--text); padding:10px; border-radius:8px; width:100%; }
-  button { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:10px 20px; font-weight:bold; cursor:pointer; margin:4px 2px; }
-  button:hover { opacity:.85; }
-  .btn-green { background:var(--green); } .btn-blue { background:var(--blue); } .btn-gray { background:#444; }
+  button { color:#fff; border:none; border-radius:8px; padding:12px 20px; font-weight:bold; cursor:pointer; margin:5px; transition: opacity 0.2s; }
+  button:hover { opacity:0.8; }
+  .btn-accent { background:var(--accent); } .btn-green { background:var(--green); } .btn-blue { background:var(--blue); } .btn-gray { background:#444; }
   .player-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #333; }
-  
-  #override-panel { background:rgba(233, 69, 96, 0.1); border:2px solid var(--accent); display:none; }
-  #override-select { padding:10px; background:#111; color:#fff; border:1px solid #444; border-radius:8px; width:100%; margin-bottom:10px; }
+  select { background:#111; color:#fff; padding:10px; width:100%; border-radius:8px; margin-top:10px; }
 </style>
 </head>
 <body>
-<div id="login-screen" class="card" style="max-width:400px; margin:80px auto;">
-  <h1>🔐 Panel Admina</h1>
-  <input type="password" id="pwd" placeholder="Hasło admina..." style="margin-bottom:10px;"/>
-  <button onclick="adminLogin()">Zaloguj się</button>
+
+<div id="login-screen" class="card" style="max-width:400px; margin:80px auto; text-align:center;">
+  <h1>🔐 Admin Login</h1>
+  <input type="password" id="pwd" style="padding:10px; width:100%; margin:10px 0;"/>
+  <button class="btn-accent" onclick="adminLogin()">Zaloguj</button>
 </div>
 
-<div id="main" style="display:none; max-width:960px; margin:0 auto;">
-  <h1>⚙️ Panel Sterowania Gry</h1>
+<div id="main" style="display:none; max-width:900px; margin:0 auto;">
+  <h1>⚙️ Panel Sterowania</h1>
   
-  <div class="card" id="override-panel">
-    <h2 style="color:var(--accent);">⚠️ Akcja Wymagana! Odrzucona odpowiedź</h2>
-    <p style="margin-bottom:10px;">Gracz: <strong id="ov-player" style="color:var(--yellow)"></strong> wpisał: <strong id="ov-answer" style="color:#fff"></strong></p>
+  <div class="card">
+    <h2>Status: <span id="status-phase" style="color:var(--blue)"></span></h2>
+    <div id="admin-controls">
+      <button class="btn-green" id="start-btn" onclick="socket.emit('startGame')">▶ Start Gry</button>
+      <button class="btn-blue" id="pause-btn" onclick="socket.emit('togglePause')">⏸ Pauza</button>
+      <button class="btn-gray" onclick="if(confirm('Zresetować grę?')) socket.emit('stopGame')">⏹ Stop / Reset</button>
+      <button class="btn-blue" onclick="socket.emit('startNextRound')">⏭ Następna Runda</button>
+    </div>
+  </div>
+
+  <div class="card" id="override-panel" style="display:none; border:2px solid var(--accent);">
+    <h3 style="color:var(--accent);">⚠️ Odrzucono: <span id="ov-answer" style="color:#fff"></span></h3>
+    <p>Gracz: <strong id="ov-player"></strong></p>
     <select id="override-select"></select>
-    <button class="btn-green" onclick="submitOverride()">✅ Zalicz wybraną odpowiedź</button>
+    <button class="btn-green" style="width:100%;" onclick="submitOverride()">✅ Zalicz tę odpowiedź</button>
   </div>
 
-  <div class="card">
-    <h2>Status gry</h2>
-    <div id="game-status" style="margin-bottom:12px;"></div>
-    <div id="admin-actions"></div>
-  </div>
-
-  <div class="card">
-    <h2>Gracze</h2>
-    <div id="players-list"></div>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+    <div class="card">
+      <h3>Podgląd Pytań (Live)</h3>
+      <div id="answers-preview"></div>
+    </div>
+    <div class="card">
+      <h3>Gracze (Kłamczuch: <span id="liar-name" style="color:var(--accent)"></span>)</h3>
+      <div id="players-list"></div>
+    </div>
   </div>
 </div>
 
 <script>
 const socket = io();
-
 function adminLogin() {
   const pwd = document.getElementById('pwd').value;
   fetch('/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password: pwd }) })
@@ -62,62 +68,51 @@ function adminLogin() {
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('main').style.display = 'block';
       socket.emit('joinAdmin');
-    } else { alert('Błędne hasło'); }
+    } else alert('Błędne hasło');
   });
 }
 
 socket.on('state', s => {
-  document.getElementById('game-status').innerHTML = `
-    <div>Faza: <strong style="color:var(--blue)">${s.phase}</strong></div>
-    <div>Runda: <strong>${s.currentRound} / ${s.totalRounds}</strong></div>
-    <div>Obecny Kłamczuch: <strong style="color:var(--accent)">${s.liarName || 'Brak'}</strong></div>
-  `;
+  document.getElementById('status-phase').textContent = s.phase + (s.isPaused ? ' (PAUZA)' : '');
+  document.getElementById('pause-btn').textContent = s.isPaused ? '▶ Wznów' : '⏸ Pauza';
+  document.getElementById('liar-name').textContent = s.liarName || 'Brak';
+  document.getElementById('start-btn').style.display = s.phase === 'lobby' ? 'inline-block' : 'none';
 
-  const actEl = document.getElementById('admin-actions');
-  actEl.innerHTML = '';
-  if (s.phase === 'lobby') {
-    const b = document.createElement('button'); b.className='btn-green'; b.textContent='▶ Start Gry'; b.onclick=()=>socket.emit('startGame'); actEl.appendChild(b);
-  }
-  if (['roundSummary', 'votingResults'].includes(s.phase)) {
-    const b = document.createElement('button'); b.className='btn-blue'; b.textContent='⏭ Następna runda'; b.onclick=()=>socket.emit('startNextRound'); actEl.appendChild(b);
+  const preview = document.getElementById('answers-preview');
+  preview.innerHTML = '';
+  if (s.allAnswers) {
+    s.allAnswers.forEach((a, i) => {
+      const isRev = s.revealedAnswers?.some(r => r.index === i);
+      preview.innerHTML += `<div class="player-row" style="color:${isRev ? 'var(--green)' : '#888'}">
+        <span>${i+1}. ${a.text}</span><span>${a.points} pkt</span>
+      </div>`;
+    });
   }
 
-  const plEl = document.getElementById('players-list');
-  plEl.innerHTML = '';
-  (s.players || []).forEach(p => {
-    const row = document.createElement('div');
-    row.className = 'player-row';
-    row.innerHTML = `<span>${p.name} ${!p.connected ? '<span style="color:red">[Offline]</span>' : ''}</span><span>${p.score} pkt</span>`;
-    plEl.appendChild(row);
-  });
-  
+  document.getElementById('players-list').innerHTML = (s.players || []).map(p => `
+    <div class="player-row">
+      <span>${p.name} ${p.isLiar ? '🎭' : ''}</span>
+      <span>${p.score} pkt</span>
+    </div>`).join('');
+
   const ovPanel = document.getElementById('override-panel');
   if (s.lastWrongAnswer && s.phase === 'round') {
     ovPanel.style.display = 'block';
     document.getElementById('ov-player').textContent = s.lastWrongAnswer.playerName;
     document.getElementById('ov-answer').textContent = s.lastWrongAnswer.text;
-    
     const sel = document.getElementById('override-select');
-    sel.innerHTML = '<option value="">-- Wybierz poprawną odpowiedź --</option>';
-    if(s.allAnswers && s.revealedAnswers) {
-        s.allAnswers.forEach((a, i) => {
-            if(!s.revealedAnswers.some(r => r.index === i)) {
-                const opt = document.createElement('option');
-                opt.value = i; opt.textContent = `${a.text} (${a.points} pkt)`;
-                sel.appendChild(opt);
-            }
-        });
-    }
-  } else {
-    ovPanel.style.display = 'none';
-  }
+    sel.innerHTML = '<option value="">-- Wybierz poprawną --</option>';
+    s.allAnswers.forEach((a, i) => {
+      if(!s.revealedAnswers.some(r => r.index === i)) {
+        sel.innerHTML += `<option value="${i}">${a.text} (${a.points})</option>`;
+      }
+    });
+  } else ovPanel.style.display = 'none';
 });
 
 function submitOverride() {
-    const sel = document.getElementById('override-select');
-    if(sel.value !== "") {
-        socket.emit('adminOverride', { answerIndex: parseInt(sel.value) });
-    }
+  const idx = document.getElementById('override-select').value;
+  if(idx !== "") socket.emit('adminOverride', { answerIndex: parseInt(idx) });
 }
 </script>
 </body>
