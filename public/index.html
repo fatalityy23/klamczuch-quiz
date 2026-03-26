@@ -207,7 +207,7 @@ socket.on('state', s => {
     c.innerHTML = s.players.map(p => `<span class="player-chip ${p.connected ? '' : 'offline'}">${p.name}</span>`).join('');
   }
 
-  if (s.phase === 'round' || s.phase === 'revealingAnswers') {
+  if (s.phase === 'round') {
     showScreen('screen-game');
     document.getElementById('round-num').textContent = s.currentRound;
     document.getElementById('my-name-display').textContent = myName;
@@ -224,15 +224,9 @@ socket.on('state', s => {
       document.getElementById('liar-panel').style.display = 'none';
     }
 
-    if (s.phase === 'round') {
-      document.getElementById('turn-name').textContent = s.currentPlayerName;
-      document.getElementById('turn-label').textContent = ' odpowiada...';
-      document.getElementById('answer-section').style.display = s.currentPlayerName === myName ? 'block' : 'none';
-    } else {
-      document.getElementById('turn-name').textContent = 'Odkrywanie...';
-      document.getElementById('turn-label').textContent = '';
-      document.getElementById('answer-section').style.display = 'none';
-    }
+    document.getElementById('turn-name').textContent = s.currentPlayerName;
+    document.getElementById('turn-label').textContent = ' odpowiada...';
+    document.getElementById('answer-section').style.display = s.currentPlayerName === myName ? 'block' : 'none';
 
     renderAnswerSlots('revealed-answers', s.allAnswers, s.revealedAnswers, false);
     renderScoreboard('scoreboard', s.players);
@@ -240,9 +234,8 @@ socket.on('state', s => {
 
   if (s.phase === 'roundSummary') {
     showScreen('screen-round-summary');
-    const isVotingRound = [2, 4, 6, 8, 9, 10].includes(s.currentRound);
-    document.getElementById('rs-subtitle').textContent = isVotingRound ? "PRZYGOTUJ SIĘ NA GŁOSOWANIE" : "PRZYGOTUJ SIĘ NA KOLEJNĄ RUNDĘ";
-    renderAnswerSlots('rs-all-answers', s.allAnswers, s.revealedAnswers, true);
+    document.getElementById('rs-subtitle').textContent = s.isVotingNext ? "PRZYGOTUJ SIĘ NA GŁOSOWANIE" : "PRZYGOTUJ SIĘ NA KOLEJNĄ RUNDĘ";
+    renderAnswerSlots('rs-all-answers', s.allAnswers, s.revealedAnswers, false);
   }
 
   if (s.phase === 'voting' || s.phase === 'finalVoting') {
@@ -299,7 +292,7 @@ function renderAnswerSlots(containerId, allAnswers, revealed, showAllText) {
     tile.className = 'answer-tile' + (rev || showAllText ? '' : ' hidden');
     
     let content = rev || showAllText ? ans.text : '???';
-    let author = rev ? ` <small>(${rev.byName})</small>` : '';
+    let author = rev && rev.byName !== 'System' ? ` <small>(${rev.byName})</small>` : '';
     
     tile.innerHTML = `<span>${content}${author}</span><span class="pts">${ans.points}</span>`;
     container.appendChild(tile);

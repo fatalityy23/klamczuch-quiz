@@ -38,8 +38,8 @@ let gameState = {
   top2: [],
   r11Turns: 0,
   speechPlayerName: null,
-  isPaused: false, // NOWE
-  lastVotingChanges: {} // NOWE
+  isPaused: false,
+  lastVotingChanges: {}
 };
 
 function defaultQuestions() {
@@ -264,7 +264,6 @@ function broadcastState() {
     base.top2 = gameState.top2;
   }
 
-  // Admin i role specjalne widzą więcej
   if (['roundSummary', 'voting', 'votingResults', 'revealingAnswers'].includes(gameState.phase) && gameState.roundData) {
     base.allAnswers = gameState.roundData.answers;
   }
@@ -296,13 +295,11 @@ function broadcastState() {
 
 function startTurnTimer() {
   clearTimeout(gameState.turnTimer);
-  clearTimeout(gameState.revealTimer);
   if (gameState.isPaused) return;
 
-  gameState.lastWrongAnswer = null;
   const currentName = gameState.roundOrder[gameState.currentTurnIndex];
   if (!currentName) {
-    if (gameState.currentRound === 11) endRound11(); else startRevealSequence();
+    if (gameState.currentRound === 11) endRound11(); else startRoundSummary();
     return;
   }
   
@@ -331,39 +328,34 @@ function nextTurn() {
     if (gameState.currentTurnIndex >= 6 || gameState.roundData.revealedAnswers.length >= 10) endRound11();
     else { broadcastState(); startTurnTimer(); }
   } else {
-    if (gameState.currentTurnIndex >= gameState.roundOrder.length || gameState.roundData.revealedAnswers.length >= 10) startRevealSequence();
+    if (gameState.currentTurnIndex >= gameState.roundOrder.length || gameState.roundData.revealedAnswers.length >= 10) startRoundSummary();
     else { broadcastState(); startTurnTimer(); }
   }
 }
 
-function endGameInstantly(failedPlayerName) {
-  const winner = gameState.top2.find(n => n !== failedPlayerName);
-  io.emit('timerStart', { duration: 5, phase: 'reveal', correct: false, message: `${failedPlayerName} odpada! Wygrywa ${winner}!` });
-  setTimeout(() => {
-    gameState.phase = 'finalSummary';
-    gameState.liarHistory.push({ round: 11, liarName: gameState.liarName, caught: false, notes: `${failedPlayerName} pomylił się 2 razy.` });
-    broadcastState();
-  }, 5000);
+function startRoundSummary() {
+  gameState.phase = 'roundSummary';
+  broadcastState();
+  // Po 3 sekundach oglądania zebranych odpowiedzi, zaczynamy odkrywać resztę
+  setTimeout(() => { if (!gameState.isPaused) startRevealSequence(); }, 3000);
 }
 
 function startRevealSequence() {
-  gameState.phase = 'revealingAnswers';
-  broadcastState();
-
   const rd = gameState.roundData;
   let unrevealed = rd.answers.map((a, i) => ({ ...a, index: i }))
     .filter(a => !rd.revealedAnswers.some(r => r.index === a.index))
-    .sort((a, b) => a.points - b.points); // Odsłanianie od najniższych
+    .sort((a, b) => a.points - b.points); // Odkrywanie od najniższych (100 pkt) do góry
 
   let step = 0;
   function revealNext() {
     if (gameState.isPaused) { setTimeout(revealNext, 1000); return; }
     if (step < unrevealed.length) {
-      io.emit('revealSingle', unrevealed[step]);
+      const currentAns = unrevealed[step];
+      rd.revealedAnswers.push({ index: currentAns.index, text: currentAns.text, points: currentAns.points, byName: 'System' });
+      broadcastState();
       step++;
-      setTimeout(revealNext, 2500);
+      setTimeout(revealNext, 2000);
     } else {
-      io.emit('revealDone');
       setTimeout(() => { postRoundRouting(); }, 4000);
     }
   }
@@ -374,12 +366,7 @@ function postRoundRouting() {
   if (VOTING_ROUNDS.includes(gameState.currentRound)) {
     startVoting();
   } else {
-    gameState.phase = 'roundSummary';
-    broadcastState();
-    // Automatyczne przejście do nowej rundy po 8 sekundach podsumowania
-    setTimeout(() => {
-      if (gameState.phase === 'roundSummary' && !gameState.isPaused) startNextRound();
-    }, 8000);
+    startNextRound();
   }
 }
 
@@ -444,7 +431,6 @@ function resolveVoting() {
   gameState.phase = 'votingResults';
   broadcastState();
   
-  // Automatyczne przejście dalej po 12 sekundach wyników
   setTimeout(() => {
     if (gameState.phase === 'votingResults' && !gameState.isPaused) startNextRound();
   }, 12000);
@@ -681,7 +667,6 @@ io.on('connection', (socket) => {
     if (!['voting', 'finalVoting'].includes(gameState.phase)) return;
     const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
     if (!player) return;
-    if (gameState.phase === 'finalVoting' && gameState.top2.includes(player.name)) return;
     gameState.votes[player.name] = votedName;
     broadcastState();
   });
