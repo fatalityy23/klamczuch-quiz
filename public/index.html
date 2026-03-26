@@ -7,341 +7,163 @@
 <script src="/socket.io/socket.io.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg:#090910; --card:rgba(26,26,46,0.8); --accent:#ff2a5f; --accent2:#16213e;
-    --text:#f0f0f0; --muted:#a0a0b0; --green:#00e676; --yellow:#ffd700; --blue:#00b4d8;
-  }
+  :root { --bg:#090910; --card:rgba(26,26,46,0.8); --accent:#ff2a5f; --text:#f0f0f0; --muted:#a0a0b0; --green:#00e676; --yellow:#ffd700; --blue:#00b4d8; }
   * { box-sizing:border-box; margin:0; padding:0; font-family:'Poppins', sans-serif; }
-  body { background:var(--bg); color:var(--text); min-height:100vh; background-image:radial-gradient(circle at top, #1a1a2e, #090910); overflow-x:hidden; }
-  h1 { color:var(--accent); font-size:clamp(1.8rem, 4vw, 2.5rem); font-weight:800; text-transform:uppercase; letter-spacing:1px; text-shadow:0 0 10px rgba(255,42,95,0.4); }
-  h2 { color:var(--yellow); font-size:clamp(1.2rem, 3vw, 1.6rem); margin-bottom:12px; }
-  h3 { color:var(--blue); font-size:1.1rem; margin-bottom:10px; }
-  
-  .screen { display:none; padding:clamp(15px, 3vw, 30px); max-width:1200px; margin:0 auto; animation: fadeIn .3s ease-out; }
+  body { background:var(--bg); color:var(--text); min-height:100vh; overflow-x:hidden; }
+  .screen { display:none; padding:20px; max-width:1200px; margin:0 auto; animation:fadeIn 0.3s; }
   .screen.active { display:flex; flex-direction:column; gap:20px; }
-  @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-  
-  .card { background:var(--card); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:clamp(15px, 3vw, 25px); box-shadow:0 8px 32px rgba(0,0,0,0.3); }
-  
-  input[type=text] {
-    background:rgba(0,0,0,0.4); border:2px solid #333; color:var(--text);
-    padding:14px 18px; border-radius:12px; font-size:1.1rem; width:100%; transition:border-color .2s;
-  }
-  input[type=text]:focus { outline:none; border-color:var(--accent); }
-  
-  button {
-    background:linear-gradient(135deg, var(--accent), #c21844); color:#fff; border:none; border-radius:12px;
-    padding:14px 28px; font-size:1.1rem; font-weight:600; cursor:pointer; transition:transform .2s, box-shadow .2s;
-    box-shadow:0 4px 15px rgba(255,42,95,0.3);
-  }
-  button:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(255,42,95,0.5); }
-  
-  .player-chip {
-    display:inline-flex; align-items:center; gap:8px;
-    background:var(--accent2); border-radius:20px; padding:8px 16px;
-    font-size:0.95rem; margin:4px; border:2px solid transparent; transition:all .2s;
-  }
-  .player-chip.active { border-color:var(--yellow); box-shadow:0 0 10px rgba(255,215,0,0.3); transform:scale(1.05); }
-  .player-chip.offline { opacity:0.5; text-decoration:line-through; }
-  
-  .answer-tile {
-    background:linear-gradient(90deg, #16213e, rgba(22,33,62,0.4)); border-left:4px solid var(--blue);
-    border-radius:8px; padding:12px 18px; margin:8px 0; display:flex; justify-content:space-between; align-items:center;
-  }
-  .answer-tile.hidden { opacity: 0.3; border-left-color: #333; }
-  .answer-tile .pts { color:var(--yellow); font-weight:800; font-size:1.2rem; }
-  
-  .timer-bar-wrap { background:rgba(0,0,0,0.5); border-radius:8px; height:12px; overflow:hidden; margin:10px 0; border:1px solid #333; }
-  .timer-bar { height:100%; background:linear-gradient(90deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%); transition:width 1s linear; }
-  
-  .score-row { display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.05); font-size:1.1rem; }
-  
-  #game-layout { display:grid; grid-template-columns:1fr; gap:20px; }
-  @media(min-width: 900px) { #game-layout { grid-template-columns: 2fr 1fr; } }
-  
-  #liar-panel {
-    background:linear-gradient(180deg, rgba(255,42,95,0.1) 0%, rgba(0,0,0,0.5) 100%);
-    border:2px solid var(--accent); border-radius:16px; padding:20px; display:none;
-  }
-  .liar-answer { padding:8px 0; font-size:0.95rem; display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.05); }
-  .liar-answer.revealed { color:var(--muted); text-decoration:line-through; opacity:0.5; }
-  
-  #voting-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:15px; }
-  .vote-card {
-    background:rgba(22,33,62,0.8); border:2px solid #333; border-radius:12px; padding:20px;
-    cursor:pointer; transition:all .2s; text-align:center;
-  }
-  .vote-card.selected { border-color:var(--accent); background:rgba(255,42,95,0.2); }
-  
-  .vote-result-row { background:rgba(255,255,255,0.05); padding:10px 15px; border-radius:8px; margin:5px 0; display:flex; justify-content:space-between; align-items:center;}
-
-  #pause-overlay {
-    position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85);
-    display:none; flex-direction:column; justify-content:center; align-items:center; z-index:9999;
-  }
+  @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+  .card { background:var(--card); border-radius:16px; padding:20px; border:1px solid rgba(255,255,255,0.05); }
+  h1 { font-weight:800; text-transform:uppercase; color:var(--accent); }
+  .answer-tile { background:rgba(22,33,62,0.6); border-left:4px solid var(--blue); border-radius:8px; padding:12px 18px; margin:8px 0; display:flex; justify-content:space-between; align-items:center; }
+  .answer-tile.hidden { border-left-color:#333; opacity:0.5; }
+  .pts { color:var(--yellow); font-weight:800; font-size:1.2rem; }
+  .timer-bar-wrap { background:rgba(0,0,0,0.5); height:12px; border-radius:6px; overflow:hidden; border:1px solid #333; margin:15px 0; }
+  .timer-bar { height:100%; background:var(--accent); width:100%; transition:width 1s linear; }
+  #pause-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); display:none; flex-direction:column; justify-content:center; align-items:center; z-index:9999; }
+  input[type=text] { background:rgba(0,0,0,0.4); border:2px solid #333; color:#fff; padding:14px; border-radius:12px; width:100%; }
+  button { background:var(--accent); color:#fff; border:none; border-radius:12px; padding:14px 28px; font-weight:600; cursor:pointer; }
+  .vote-tile { background:var(--card); padding:15px; border-radius:12px; border:2px solid #333; cursor:pointer; text-align:center; }
+  .vote-tile.selected { border-color:var(--accent); background:rgba(255,42,95,0.2); }
+  .big-msg { font-size:clamp(2rem, 8vw, 4rem); font-weight:800; text-align:center; margin:20px 0; }
 </style>
 </head>
 <body>
-
 <div id="pause-overlay">
   <h1 style="font-size:5rem;">PAUZA</h1>
-  <p style="color:var(--yellow); font-size:1.5rem;">Czekaj na wznowienie przez Host'a...</p>
+  <p>Host wstrzymał grę...</p>
 </div>
 
 <div class="screen active" id="screen-join">
-  <div style="text-align:center; padding:5vh 0;">
+  <div class="card" style="max-width:400px; margin:100px auto; text-align:center;">
     <h1>KłamczuchQuiz</h1>
-  </div>
-  <div class="card" style="max-width:450px; margin:0 auto; width:100%;">
-    <h3>Dołącz do gry</h3>
-    <input type="text" id="player-name" placeholder="Twoje imię..." maxlength="20" style="margin:15px 0;"/>
-    <button onclick="joinGame()" style="width:100%;">Dołącz do zabawy</button>
-    <p id="join-error" style="color:var(--accent); margin-top:15px; text-align:center; font-weight:600;"></p>
-  </div>
-</div>
-
-<div class="screen" id="screen-lobby">
-  <div class="card" style="text-align:center;">
-    <h2>Poczekalnia</h2>
-    <div id="lobby-players" style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px;"></div>
+    <input type="text" id="p-name" placeholder="Twoje imię..." style="margin:20px 0;"/>
+    <button onclick="joinGame()" style="width:100%;">Graj</button>
   </div>
 </div>
 
 <div class="screen" id="screen-game">
-  <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:15px;">
-    <h1>Runda <span id="round-num" style="color:var(--yellow);"></span></h1>
-    <div id="my-name-display" style="color:var(--blue); font-weight:bold;"></div>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h1>Runda <span id="round-num"></span></h1>
+    <div id="my-name-display" style="font-weight:bold; color:var(--blue)"></div>
   </div>
-  <div id="game-layout">
-    <div style="display:flex; flex-direction:column; gap:20px;">
-      <div class="card">
-        <h2 id="question-text" style="margin-bottom:20px;"></h2>
-        <div id="turn-info" style="background:rgba(0,0,0,0.3); padding:15px; border-radius:12px; text-align:center;">
-          <span id="turn-name" style="color:var(--yellow); font-size:1.3rem; font-weight:bold;"></span>
-          <span id="turn-label" style="color:var(--muted);"></span>
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px;">
+    <div class="card">
+      <h2 id="question-text">Pytanie...</h2>
+      <div id="turn-area" class="big-msg"></div>
+      <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar"></div></div>
+      <div id="ans-input-area" style="display:none; margin-top:20px;">
+        <div style="display:flex; gap:10px;">
+          <input type="text" id="ans-in" placeholder="Wpisz odpowiedź..."/>
+          <button onclick="sendAns()">Wyślij</button>
         </div>
-        <div id="timer-section" style="margin:15px 0;">
-          <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar" style="width:100%"></div></div>
-          <div style="text-align:right;"><span id="timer-count" style="color:var(--yellow); font-weight:bold;"></span></div>
-        </div>
-        <div id="answer-section" style="display:none; margin-top:20px;">
-          <div style="display:flex; gap:10px;">
-            <input type="text" id="answer-input" placeholder="Wpisz odpowiedź..."/>
-            <button onclick="submitAnswer()" id="answer-btn">Wyślij</button>
-          </div>
-        </div>
-        <div id="reveal-msg" style="display:none; text-align:center; padding:15px; border-radius:12px; margin-top:15px; font-weight:800;"></div>
       </div>
+      <div id="reveal-msg" style="text-align:center; font-weight:bold; margin-top:10px;"></div>
     </div>
-    
     <div style="display:flex; flex-direction:column; gap:20px;">
       <div class="card">
-        <h3>Odpowiedzi (10)</h3>
-        <div id="revealed-answers"></div>
-      </div>
-      <div id="liar-panel">
-        <h3 style="color:var(--accent);">🔴 KŁAMCZUCH</h3>
-        <div id="liar-answers-list"></div>
+        <h3>Odpowiedzi</h3>
+        <div id="answers-list"></div>
       </div>
       <div class="card">
         <h3>Ranking</h3>
-        <div id="scoreboard"></div>
+        <div id="pl-list"></div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="screen" id="screen-round-summary">
-  <div class="card" style="max-width:800px; margin:0 auto; width:100%;">
-    <h1 style="text-align:center; margin-bottom:10px;">Podsumowanie Rundy</h1>
-    <p id="rs-subtitle" style="text-align:center; color:var(--yellow); margin-bottom:20px; font-weight:bold;"></p>
-    <div id="rs-all-answers"></div>
+<div class="screen" id="screen-summary">
+  <div class="card" style="text-align:center;">
+    <h1>Podsumowanie Rundy</h1>
+    <div id="sum-ans-list" style="text-align:left; margin-top:20px;"></div>
+    <p id="sum-next-msg" style="margin-top:20px; font-weight:800; color:var(--yellow);"></p>
   </div>
 </div>
 
 <div class="screen" id="screen-voting">
   <div class="card" style="text-align:center;">
-    <h2>🗳️ Głosowanie</h2>
-    <div id="vote-timer" style="font-size:3.5rem; color:var(--yellow); font-weight:800;">60</div>
-    <div id="voting-grid" style="margin-top:20px;"></div>
+    <h1 class="big-msg">WSKAŻ KŁAMCZYCHA!</h1>
+    <div id="vote-timer" style="font-size:3rem; color:var(--yellow); font-weight:800;">60</div>
+    <div id="vote-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:15px; margin-top:20px;"></div>
   </div>
 </div>
 
-<div class="screen" id="screen-voting-results">
-  <div class="card" style="max-width:700px; margin:0 auto; width:100%;">
-    <h2 style="text-align:center; margin-bottom:20px;">Wyniki Głosowania</h2>
-    <div id="voting-results-list"></div>
-  </div>
-</div>
-
-<div class="screen" id="screen-final">
+<div class="screen" id="screen-results">
   <div class="card" style="text-align:center;">
-    <h1 style="color:var(--yellow);">Koniec Gry!</h1>
-    <div id="final-scoreboard" style="margin-top:30px; text-align:left;"></div>
+    <h1>Wyniki Głosowania</h1>
+    <div id="v-res-list" style="text-align:left; max-width:600px; margin:20px auto;"></div>
   </div>
 </div>
 
 <script>
 const socket = io();
 let myName = '';
-let myVote = null;
-let timerInterval = null;
-
-function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-}
-
-function joinGame() {
-  const name = document.getElementById('player-name').value.trim();
-  if (name) socket.emit('joinGame', { name });
-}
+function showScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+function joinGame() { const n = document.getElementById('p-name').value.trim(); if(n){ myName = n; socket.emit('joinGame', { name: n }); } }
 
 socket.on('state', s => {
-  if (s.myName) myName = s.myName;
   document.getElementById('pause-overlay').style.display = s.isPaused ? 'flex' : 'none';
-
-  if (s.phase === 'lobby') {
-    showScreen('screen-lobby');
-    const c = document.getElementById('lobby-players');
-    c.innerHTML = s.players.map(p => `<span class="player-chip ${p.connected ? '' : 'offline'}">${p.name}</span>`).join('');
-  }
-
-  if (s.phase === 'round') {
+  if (s.phase === 'lobby') showScreen('screen-join');
+  else if (s.phase === 'round') {
     showScreen('screen-game');
     document.getElementById('round-num').textContent = s.currentRound;
-    document.getElementById('my-name-display').textContent = myName;
     document.getElementById('question-text').textContent = s.questionText;
-
-    if (s.liarAnswers) {
-      document.getElementById('liar-panel').style.display = 'block';
-      const revIdxs = (s.revealedAnswers || []).map(r => r.index);
-      document.getElementById('liar-answers-list').innerHTML = s.liarAnswers.map((a, i) => `
-        <div class="liar-answer ${revIdxs.includes(i) ? 'revealed' : ''}">
-          <span>${a.text}</span><span style="color:var(--yellow)">${a.points}</span>
-        </div>`).join('');
+    document.getElementById('my-name-display').textContent = myName;
+    const turnArea = document.getElementById('turn-area');
+    if (s.currentPlayerName === myName) {
+      turnArea.innerHTML = `<span style="color:var(--green)">TWOJA KOLEJ!</span>`;
+      document.getElementById('ans-input-area').style.display = 'block';
     } else {
-      document.getElementById('liar-panel').style.display = 'none';
+      turnArea.innerHTML = `<span style="color:var(--muted); font-size:1.5rem">${s.currentPlayerName} odpowiada...</span>`;
+      document.getElementById('ans-input-area').style.display = 'none';
     }
-
-    document.getElementById('turn-name').textContent = s.currentPlayerName;
-    document.getElementById('turn-label').textContent = ' odpowiada...';
-    document.getElementById('answer-section').style.display = s.currentPlayerName === myName ? 'block' : 'none';
-
-    renderAnswerSlots('revealed-answers', s.allAnswers, s.revealedAnswers, false);
-    renderScoreboard('scoreboard', s.players);
-  }
-
-  if (s.phase === 'roundSummary') {
-    showScreen('screen-round-summary');
-    document.getElementById('rs-subtitle').textContent = s.isVotingNext ? "PRZYGOTUJ SIĘ NA GŁOSOWANIE" : "PRZYGOTUJ SIĘ NA KOLEJNĄ RUNDĘ";
-    renderAnswerSlots('rs-all-answers', s.allAnswers, s.revealedAnswers, false);
-  }
-
-  if (s.phase === 'voting' || s.phase === 'finalVoting') {
+    renderAnswers('answers-list', s.allAnswers, s.revealedAnswers);
+    renderScoreboard(s.players);
+  } else if (s.phase === 'roundSummary' || s.phase === 'revealingAnswers') {
+    showScreen('screen-summary');
+    renderAnswers('sum-ans-list', s.allAnswers, s.revealedAnswers, true);
+    document.getElementById('sum-next-msg').textContent = s.isVotingNext ? "PRZYGOTUJ SIĘ NA GŁOSOWANIE!" : "NASTĘPNA RUNDA ZA CHWILĘ...";
+  } else if (s.phase === 'voting') {
     showScreen('screen-voting');
-    const grid = document.getElementById('voting-grid');
-    grid.innerHTML = '';
-    let targets = s.players.filter(p => p.name !== myName);
-    targets.forEach(p => {
-      const card = document.createElement('div');
-      card.className = 'vote-card' + (myVote === p.name ? ' selected' : '');
-      card.innerHTML = `<strong>${p.name}</strong>`;
-      card.onclick = () => {
-        myVote = p.name;
-        socket.emit('vote', { votedName: p.name });
-        document.querySelectorAll('.vote-card').forEach(c => c.classList.remove('selected'));
-        card.classList.add('selected');
-      };
-      grid.appendChild(card);
+    const grid = document.getElementById('vote-grid'); grid.innerHTML = '';
+    s.players.filter(p => p.name !== myName).forEach(p => {
+      const tile = document.createElement('div'); tile.className = 'vote-tile'; tile.textContent = p.name;
+      tile.onclick = () => { socket.emit('vote', { votedName: p.name }); document.querySelectorAll('.vote-tile').forEach(t=>t.classList.remove('selected')); tile.classList.add('selected'); };
+      grid.appendChild(tile);
     });
-  }
-
-  if (s.phase === 'votingResults') {
-    showScreen('screen-voting-results');
-    const list = document.getElementById('voting-results-list');
-    list.innerHTML = '';
-    myVote = null;
-    if (s.votes) {
-      Object.entries(s.votes).forEach(([voter, votedFor]) => {
-        const change = s.lastVotingChanges[voter] || 0;
-        const color = change >= 0 ? 'var(--green)' : 'var(--accent)';
-        list.innerHTML += `
-          <div class="vote-result-row">
-            <span><strong>${voter}</strong> → <strong>${votedFor}</strong></span>
-            <span style="color:${color}; font-weight:800">${change > 0 ? '+' : ''}${change} pkt</span>
-          </div>`;
-      });
-    }
-  }
-
-  if (s.phase === 'finalSummary') {
-    showScreen('screen-final');
-    renderScoreboard('final-scoreboard', s.players);
+  } else if (s.phase === 'votingResults') {
+    showScreen('screen-results');
+    const list = document.getElementById('v-res-list'); list.innerHTML = '';
+    Object.entries(s.votes || {}).forEach(([voter, voted]) => {
+      const change = s.lastVotingChanges[voter] || 0;
+      list.innerHTML += `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #333">
+        <span><b>${voter}</b> → ${voted}</span>
+        <span style="color:${change >= 0 ? 'var(--green)' : 'var(--accent)'}; font-weight:bold">${change > 0 ? '+' : ''}${change} pkt</span>
+      </div>`;
+    });
   }
 });
 
-function renderAnswerSlots(containerId, allAnswers, revealed, showAllText) {
-  const container = document.getElementById(containerId);
-  container.innerHTML = '';
-  if (!allAnswers) return;
-
-  allAnswers.forEach((ans, i) => {
-    const rev = revealed?.find(r => r.index === i);
-    const tile = document.createElement('div');
-    tile.className = 'answer-tile' + (rev || showAllText ? '' : ' hidden');
-    
-    let content = rev || showAllText ? ans.text : '???';
-    let author = rev && rev.byName !== 'System' ? ` <small>(${rev.byName})</small>` : '';
-    
-    tile.innerHTML = `<span>${content}${author}</span><span class="pts">${ans.points}</span>`;
+function renderAnswers(id, all, revealed, isSum = false) {
+  const container = document.getElementById(id); container.innerHTML = '';
+  if(!all) return;
+  all.forEach((ans, i) => {
+    const rev = revealed.find(r => r.index === i);
+    const tile = document.createElement('div'); tile.className = 'answer-tile' + (rev ? '' : ' hidden');
+    tile.innerHTML = `<span>${rev ? ans.text : (isSum ? ans.text : '???')} ${rev && rev.byName !== 'System' ? `<small>(${rev.byName})</small>` : ''}</span><span class="pts">${ans.points}</span>`;
     container.appendChild(tile);
   });
 }
-
-socket.on('timerStart', ({ duration, phase, correct, message }) => {
-  clearInterval(timerInterval);
-  const bar = document.getElementById('timer-bar');
-  const count = document.getElementById('timer-count');
-  const revMsg = document.getElementById('reveal-msg');
-
-  if (phase === 'reveal') {
-    revMsg.style.display = 'block';
-    revMsg.textContent = message;
-    revMsg.style.background = correct ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 42, 95, 0.2)';
-    revMsg.style.color = correct ? 'var(--green)' : 'var(--accent)';
-  } else {
-    revMsg.style.display = 'none';
-  }
-
-  let t = duration;
-  timerInterval = setInterval(() => {
-    t--; count.textContent = t + 's';
-    bar.style.width = (t / duration * 100) + '%';
-    if (t <= 0) clearInterval(timerInterval);
-  }, 1000);
-});
-
-socket.on('votingTimer', ({ timeLeft }) => {
-  const el = document.getElementById('vote-timer');
-  if(el) el.textContent = timeLeft;
-});
-
-function renderScoreboard(elId, players) {
-  const el = document.getElementById(elId);
-  el.innerHTML = '';
-  [...players].sort((a,b) => b.score - a.score).forEach((p, i) => {
-    el.innerHTML += `<div class="score-row"><span>${i+1}. ${p.name}</span><strong>${p.score} pkt</strong></div>`;
+function renderScoreboard(players) {
+  const list = document.getElementById('pl-list'); list.innerHTML = '';
+  [...players].sort((a,b)=>b.score - a.score).forEach(p => {
+    list.innerHTML += `<div style="display:flex; justify-content:space-between; padding:5px 0"><span>${p.name}</span><strong>${p.score} pkt</strong></div>`;
   });
 }
-
-function submitAnswer() {
-  const input = document.getElementById('answer-input');
-  if (input.value.trim()) {
-    socket.emit('submitAnswer', { answer: input.value.trim() });
-    input.value = '';
-  }
-}
+function sendAns() { socket.emit('submitAnswer', { answer: document.getElementById('ans-in').value }); document.getElementById('ans-in').value = ''; }
+socket.on('timerStart', d => { const bar = document.getElementById('timer-bar'); bar.style.transition = 'none'; bar.style.width = '100%'; setTimeout(() => { bar.style.transition = `width ${d.duration}s linear`; bar.style.width = '0%'; }, 50); });
+socket.on('votingTimer', d => { document.getElementById('vote-timer').textContent = d.timeLeft; });
 </script>
 </body>
 </html>
