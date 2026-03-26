@@ -5,25 +5,28 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  pingTimeout: 60000,
+  pingInterval: 25000
+});
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
+const VOTING_ROUNDS = [2, 4, 6, 8, 9, 10];
+
 let gameState = {
   phase: 'lobby',
-  players: {},
+  players: {}, // Kluczem jest teraz imię gracza
   adminSocketId: null,
   questions: defaultQuestions(),
   currentRound: 0,
-  totalRounds: 6,
+  totalRounds: 11,
   roundData: null,
-  liarId: null,
-  lastLiarId: null,
+  liarName: null,
   votes: {},
-  powerupsUsed: {},
   votingTimeLeft: 0,
   votingInterval: null,
   roundOrder: [],
@@ -32,100 +35,179 @@ let gameState = {
   revealTimer: null,
   usedQuestions: [],
   liarHistory: [],
+  lastWrongAnswer: null,
+  top2: [],
+  r11Turns: 0,
+  speechPlayerName: null
 };
 
 function defaultQuestions() {
   return [
     {
-      text: "O czym najczęściej zapominamy wychodząc z domu?",
+      text: "Wymień popularne batony",
       answers: [
-        { text: "Zamknąć drzwi", points: 10 },
-        { text: "Zabrać klucze", points: 9 },
-        { text: "Telefon", points: 8 },
-        { text: "Klucze od samochodu", points: 7 },
-        { text: "Portfel", points: 6 },
-        { text: "Ładowarka", points: 5 },
-        { text: "Dokumenty", points: 4 },
-        { text: "Parasolka", points: 3 },
-        { text: "Zakupy", points: 2 },
-        { text: "Leki", points: 1 },
+        { text: "Snickers", points: 1000 },
+        { text: "Twix", points: 900 },
+        { text: "Mars", points: 800 },
+        { text: "Kinder Bueno", points: 700 },
+        { text: "Bounty", points: 600 },
+        { text: "Lion", points: 500 },
+        { text: "Pawełek", points: 400 },
+        { text: "KitKat", points: 300 },
+        { text: "Milky Way", points: 200 },
+        { text: "3Bit", points: 100 },
       ]
     },
     {
-      text: "Co ludzie robią jako pierwsze rano po przebudzeniu?",
+      text: "Co ludzie często udają, że rozumieją, choć nie rozumieją?",
       answers: [
-        { text: "Sprawdzają telefon", points: 10 },
-        { text: "Idą do łazienki", points: 9 },
-        { text: "Wyłączają budzik", points: 8 },
-        { text: "Piją kawę", points: 7 },
-        { text: "Patrzą przez okno", points: 6 },
-        { text: "Myją zęby", points: 5 },
-        { text: "Biorą prysznic", points: 4 },
-        { text: "Jedzą śniadanie", points: 3 },
-        { text: "Włączają telewizor", points: 2 },
-        { text: "Ćwiczą", points: 1 },
+        { text: "Podatki", points: 1000 },
+        { text: "Politykę", points: 900 },
+        { text: "Kryptowaluty", points: 800 },
+        { text: "Sztukę współczesną", points: 700 },
+        { text: "Instrukcję leku", points: 600 },
+        { text: "Umowę kredytu", points: 500 },
+        { text: "Memy", points: 400 },
+        { text: "Excela", points: 300 },
+        { text: "AI", points: 200 },
+        { text: "Spalony", points: 100 },
       ]
     },
     {
-      text: "Co najczęściej robimy podczas nudy?",
+      text: "Państwo, którego nazwa kończy się na \"NIA\"",
       answers: [
-        { text: "Przeglądamy telefon", points: 10 },
-        { text: "Oglądamy Netflix", points: 9 },
-        { text: "Jemy", points: 8 },
-        { text: "Śpimy", points: 7 },
-        { text: "Gramy w gry", points: 6 },
-        { text: "Słuchamy muzyki", points: 5 },
-        { text: "Dzwonimy do znajomych", points: 4 },
-        { text: "Sprzątamy", points: 3 },
-        { text: "Czytamy", points: 2 },
-        { text: "Gotujemy", points: 1 },
+        { text: "Hiszpania", points: 1000 },
+        { text: "Dania", points: 900 },
+        { text: "Rumunia", points: 800 },
+        { text: "Albania", points: 700 },
+        { text: "Estonia", points: 600 },
+        { text: "Kenia", points: 500 },
+        { text: "Słowenia", points: 400 },
+        { text: "Armenia", points: 300 },
+        { text: "Jordania", points: 200 },
+        { text: "Tanzania", points: 100 },
       ]
     },
     {
-      text: "Co najczęściej tracimy w domu?",
+      text: "Do jakiego kraju Polacy jeżdżą/latają na wakacje?",
       answers: [
-        { text: "Pilot", points: 10 },
-        { text: "Klucze", points: 9 },
-        { text: "Telefon", points: 8 },
-        { text: "Skarpetki", points: 7 },
-        { text: "Okulary", points: 6 },
-        { text: "Ładowarkę", points: 5 },
-        { text: "Portfel", points: 4 },
-        { text: "Długopis", points: 3 },
-        { text: "Słuchawki", points: 2 },
-        { text: "Dokumenty", points: 1 },
+        { text: "Grecja", points: 1000 },
+        { text: "Hiszpania", points: 900 },
+        { text: "Włochy", points: 800 },
+        { text: "Egipt", points: 700 },
+        { text: "Turcja", points: 600 },
+        { text: "Chorwacja", points: 500 },
+        { text: "Bułgaria", points: 400 },
+        { text: "Portugalia", points: 300 },
+        { text: "Albania", points: 200 },
+        { text: "Tunezja", points: 100 },
       ]
     },
     {
-      text: "Co najczęściej zamawiamy w restauracji fast food?",
+      text: "Co ludzie najczęściej mają przy łóżku?",
       answers: [
-        { text: "Burgera", points: 10 },
-        { text: "Frytki", points: 9 },
-        { text: "Colę", points: 8 },
-        { text: "Nuggetsy", points: 7 },
-        { text: "Pizzę", points: 6 },
-        { text: "Hot-doga", points: 5 },
-        { text: "Wrap", points: 4 },
-        { text: "Sałatkę", points: 3 },
-        { text: "Lody", points: 2 },
-        { text: "Wodę", points: 1 },
+        { text: "Telefon", points: 1000 },
+        { text: "Lampkę", points: 900 },
+        { text: "Ładowarkę", points: 800 },
+        { text: "Prezerwatywę", points: 700 },
+        { text: "Książkę", points: 600 },
+        { text: "Chusteczki", points: 500 },
+        { text: "Pilot", points: 400 },
+        { text: "Zegarek", points: 300 },
+        { text: "Szklankę", points: 200 },
+        { text: "Okulary", points: 100 },
       ]
     },
     {
-      text: "Co najczęściej robimy gdy pada deszcz?",
+      text: "Popularny superbohater",
       answers: [
-        { text: "Zostajemy w domu", points: 10 },
-        { text: "Bierzemy parasolkę", points: 9 },
-        { text: "Narzekamy na pogodę", points: 8 },
-        { text: "Zakładamy kurtkę", points: 7 },
-        { text: "Oglądamy filmy", points: 6 },
-        { text: "Pijemy herbatę", points: 5 },
-        { text: "Biegniemy do auta", points: 4 },
-        { text: "Czytamy książkę", points: 3 },
-        { text: "Śpimy", points: 2 },
-        { text: "Tańczymy w deszczu", points: 1 },
+        { text: "Batman", points: 1000 },
+        { text: "Spider-Man", points: 900 },
+        { text: "Superman", points: 800 },
+        { text: "Hulk", points: 700 },
+        { text: "Iron Man", points: 600 },
+        { text: "Thor", points: 500 },
+        { text: "Kapitan Ameryka", points: 400 },
+        { text: "Wonder Woman", points: 300 },
+        { text: "Wolverine", points: 200 },
+        { text: "Flash", points: 100 },
       ]
     },
+    {
+      text: "Wymień sport, w którym rywalizujesz bez bezpośredniego kontaktu fizycznego",
+      answers: [
+        { text: "Tenis", points: 1000 },
+        { text: "Tenis stołowy", points: 900 },
+        { text: "Siatkówka", points: 800 },
+        { text: "Badminton", points: 700 },
+        { text: "Szachy", points: 600 },
+        { text: "Squash", points: 500 },
+        { text: "Bilard", points: 400 },
+        { text: "Golf", points: 300 },
+        { text: "Dart", points: 200 },
+        { text: "Kręgle", points: 100 },
+      ]
+    },
+    {
+      text: "Popularne polskie nazwisko",
+      answers: [
+        { text: "Kowalski", points: 1000 },
+        { text: "Nowak", points: 900 },
+        { text: "Lewandowski", points: 800 },
+        { text: "Wiśniewski", points: 700 },
+        { text: "Kowalczyk", points: 600 },
+        { text: "Kamiński", points: 500 },
+        { text: "Wójcik", points: 400 },
+        { text: "Zieliński", points: 300 },
+        { text: "Szymański", points: 200 },
+        { text: "Woźniak", points: 100 },
+      ]
+    },
+    {
+      text: "Co można powiedzieć podczas gry w karty?",
+      answers: [
+        { text: "Wchodzę", points: 1000 },
+        { text: "Nie kończ jeszcze", points: 900 },
+        { text: "Tasuj porządnie", points: 800 },
+        { text: "Nie patrz", points: 700 },
+        { text: "Odsłaniasz czy czekasz?", points: 600 },
+        { text: "Masz niezły układ", points: 500 },
+        { text: "Teraz ja", points: 400 },
+        { text: "Spokojnie, po kolei", points: 300 },
+        { text: "Ale mnie przebiłeś", points: 200 },
+        { text: "Dzisiaj wyjątkowo ci idzie", points: 100 },
+      ]
+    },
+    {
+      text: "Co golimy?",
+      answers: [
+        { text: "Jaja", points: 1000 },
+        { text: "Broda", points: 900 },
+        { text: "Nogi", points: 800 },
+        { text: "Pachy", points: 700 },
+        { text: "Wąsy", points: 600 },
+        { text: "Cipka", points: 500 },
+        { text: "Klatka piersiowa", points: 400 },
+        { text: "Dupa", points: 300 },
+        { text: "Ręce", points: 200 },
+        { text: "Brwi", points: 100 },
+      ]
+    },
+    {
+      text: "Słowo, którego nazwa kończy się na \"owiec\"",
+      answers: [
+        { text: "Naukowiec", points: 1000 },
+        { text: "Fachowiec", points: 900 },
+        { text: "Biurowiec", points: 800 },
+        { text: "Sportowiec", points: 700 },
+        { text: "Śmigłowiec", points: 600 },
+        { text: "Zawodowiec", points: 500 },
+        { text: "Pokrowiec", points: 400 },
+        { text: "Szybowiec", points: 300 },
+        { text: "Drogowiec", points: 200 },
+        { text: "Związkowiec", points: 100 },
+      ]
+    }
   ];
 }
 
@@ -135,17 +217,12 @@ function levenshtein(a, b) {
   for (let j = 0; j <= n; j++) dp[0][j] = j;
   for (let i = 1; i <= m; i++)
     for (let j = 1; j <= n; j++)
-      dp[i][j] = a[i-1] === b[j-1]
-        ? dp[i-1][j-1]
-        : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
   return dp[m][n];
 }
 
 function normalize(str) {
-  return str.toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9 ]/g, '')
-    .trim();
+  return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();
 }
 
 function matchAnswer(input, answers, revealedIdxs) {
@@ -153,35 +230,16 @@ function matchAnswer(input, answers, revealedIdxs) {
   for (let i = 0; i < answers.length; i++) {
     if (revealedIdxs.includes(i)) continue;
     const normAnswer = normalize(answers[i].text);
-    if (normAnswer === normInput || normAnswer.includes(normInput) || normInput.includes(normAnswer)) {
-      return i;
-    }
+    if (normAnswer === normInput || normAnswer.includes(normInput) || normInput.includes(normAnswer)) return i;
     const threshold = Math.min(3, Math.max(1, Math.floor(Math.min(normInput.length, normAnswer.length) * 0.3)));
     if (levenshtein(normInput, normAnswer) <= threshold) return i;
-    const inputWords = normInput.split(' ').filter(w => w.length > 2);
-    const ansWords   = normAnswer.split(' ').filter(w => w.length > 2);
-    for (const iw of inputWords) {
-      for (const aw of ansWords) {
-        const t2 = Math.min(2, Math.max(1, Math.floor(Math.min(iw.length, aw.length) * 0.3)));
-        if (levenshtein(iw, aw) <= t2) return i;
-      }
-    }
   }
   return -1;
 }
 
-function calcVotingPoints(playerId, usedPowerup) {
-  const score = gameState.players[playerId]?.score || 0;
-  const mult = usedPowerup ? 2 : 1;
-  const gain = Math.round(score * 0.10 * mult);
-  const loss = Math.round(score * 0.10 * mult);
-  return { gain, loss };
-}
-
 function getPlayerList() {
-  return Object.entries(gameState.players).map(([id, p]) => ({
-    id, name: p.name, score: p.score, isHost: p.isHost,
-    powerupUsed: gameState.powerupsUsed[id] || false,
+  return Object.values(gameState.players).map(p => ({
+    name: p.name, score: p.score, connected: p.connected, isLiar: p.isLiar, wrongAnswers: p.wrongAnswers
   }));
 }
 
@@ -195,44 +253,39 @@ function broadcastState() {
   };
 
   if (gameState.roundData) {
-    const rd = gameState.roundData;
-    base.questionText = rd.questionText;
-    base.revealedAnswers = rd.revealedAnswers;
-    base.currentTurnIndex = gameState.currentTurnIndex;
-    base.roundOrder = gameState.roundOrder.map(id => ({
-      id, name: gameState.players[id]?.name
-    }));
-    base.currentPlayerId = gameState.roundOrder[gameState.currentTurnIndex] || null;
-  }
-
-  if (['roundSummary','voting'].includes(gameState.phase) && gameState.roundData) {
-    base.allAnswers = gameState.roundData.answers;
+    base.questionText = gameState.roundData.questionText;
     base.revealedAnswers = gameState.roundData.revealedAnswers;
+    base.roundOrder = gameState.roundOrder;
+    base.currentTurnIndex = gameState.currentTurnIndex;
+    base.currentPlayerName = gameState.roundOrder[gameState.currentTurnIndex] || null;
+    base.top2 = gameState.top2;
   }
 
-  if (gameState.phase === 'voting') {
+  if (['roundSummary', 'voting', 'votingResults'].includes(gameState.phase) && gameState.roundData) {
+    base.allAnswers = gameState.roundData.answers;
+  }
+
+  if (['voting', 'votingResults', 'finalVoting'].includes(gameState.phase)) {
     base.votes = gameState.votes;
     base.votingTimeLeft = gameState.votingTimeLeft;
-    base.powerupsUsed = { ...gameState.powerupsUsed };
+  }
+  
+  if (gameState.phase === 'speeches') {
+    base.speechPlayerName = gameState.speechPlayerName;
+    base.votingTimeLeft = gameState.votingTimeLeft;
   }
 
-  Object.entries(gameState.players).forEach(([sid, player]) => {
-    const payload = { ...base };
-    if (player.isLiar && gameState.roundData && gameState.phase === 'round') {
+  Object.values(gameState.players).forEach(player => {
+    if (!player.connected || !player.socketId) return;
+    const payload = { ...base, myName: player.name };
+    if (player.isLiar && gameState.roundData && ['round', 'revealingAnswers', 'roundSummary'].includes(gameState.phase)) {
       payload.liarAnswers = gameState.roundData.answers;
     }
-    if (gameState.phase === 'voting') {
-      const puUsed = gameState.powerupsUsed[sid] || false;
-      payload.myVotingPoints = calcVotingPoints(sid, puUsed);
-      payload.myPowerupUsed = puUsed;
-    }
-    io.to(sid).emit('state', payload);
+    io.to(player.socketId).emit('state', payload);
   });
 
   if (gameState.adminSocketId) {
-    const adminPayload = { ...base, votes: gameState.votes };
-    if (gameState.roundData) adminPayload.allAnswers = gameState.roundData.answers;
-    adminPayload.liarId = gameState.liarId;
+    const adminPayload = { ...base, votes: gameState.votes, allAnswers: gameState.roundData?.answers, liarName: gameState.liarName, lastWrongAnswer: gameState.lastWrongAnswer };
     io.to(gameState.adminSocketId).emit('state', adminPayload);
   }
 }
@@ -240,35 +293,88 @@ function broadcastState() {
 function startTurnTimer() {
   clearTimeout(gameState.turnTimer);
   clearTimeout(gameState.revealTimer);
-  const currentId = gameState.roundOrder[gameState.currentTurnIndex];
-  if (!currentId) { endRound(); return; }
-  io.emit('timerStart', { duration: 15, phase: 'answer' });
-  gameState.turnTimer = setTimeout(() => { showNoAnswer(); }, 15000);
+  gameState.lastWrongAnswer = null;
+  const currentName = gameState.roundOrder[gameState.currentTurnIndex];
+  if (!currentName) {
+    if (gameState.currentRound === 11) endRound11(); else startRevealSequence();
+    return;
+  }
+  
+  const duration = gameState.currentTurnIndex === 0 ? 35 : 25;
+  io.emit('timerStart', { duration, phase: 'answer' });
+  gameState.turnTimer = setTimeout(() => { showNoAnswer(currentName); }, duration * 1000);
 }
 
-function showNoAnswer() {
+function showNoAnswer(playerName) {
   clearTimeout(gameState.turnTimer);
+  if (gameState.currentRound === 11 && gameState.players[playerName]) {
+    gameState.players[playerName].wrongAnswers++;
+    if (gameState.players[playerName].wrongAnswers >= 2) {
+      endGameInstantly(playerName);
+      return;
+    }
+  }
   io.emit('timerStart', { duration: 5, phase: 'reveal', correct: false, message: 'Czas minął! Brak odpowiedzi.' });
   gameState.revealTimer = setTimeout(() => { nextTurn(); }, 5000);
 }
 
 function nextTurn() {
   gameState.currentTurnIndex++;
-  if (gameState.currentTurnIndex >= gameState.roundOrder.length) endRound();
-  else { broadcastState(); startTurnTimer(); }
+  if (gameState.currentRound === 11) {
+    if (gameState.currentTurnIndex >= 6 || gameState.roundData.revealedAnswers.length >= 10) endRound11();
+    else { broadcastState(); startTurnTimer(); }
+  } else {
+    if (gameState.currentTurnIndex >= gameState.roundOrder.length || gameState.roundData.revealedAnswers.length >= 10) startRevealSequence();
+    else { broadcastState(); startTurnTimer(); }
+  }
 }
 
-function endRound() {
-  clearTimeout(gameState.turnTimer);
-  clearTimeout(gameState.revealTimer);
-  gameState.phase = 'roundSummary';
+function endGameInstantly(failedPlayerName) {
+  const winner = gameState.top2.find(n => n !== failedPlayerName);
+  io.emit('timerStart', { duration: 5, phase: 'reveal', correct: false, message: `${failedPlayerName} odpada! Wygrywa ${winner}!` });
+  setTimeout(() => {
+    gameState.phase = 'finalSummary';
+    gameState.liarHistory.push({ round: 11, liarName: gameState.liarName, caught: false, notes: `${failedPlayerName} pomylił się 2 razy.` });
+    broadcastState();
+  }, 5000);
+}
+
+function startRevealSequence() {
+  gameState.phase = 'revealingAnswers';
   broadcastState();
+
+  const rd = gameState.roundData;
+  let unrevealed = rd.answers.map((a, i) => ({ ...a, index: i }))
+    .filter(a => !rd.revealedAnswers.some(r => r.index === a.index))
+    .sort((a, b) => a.points - b.points);
+
+  let step = 0;
+  function revealNext() {
+    if (step < unrevealed.length) {
+      io.emit('revealSingle', unrevealed[step]);
+      step++;
+      setTimeout(revealNext, 5000);
+    } else {
+      io.emit('revealDone');
+      setTimeout(() => { postRoundRouting(); }, 10000);
+    }
+  }
+  revealNext();
+}
+
+function postRoundRouting() {
+  if (VOTING_ROUNDS.includes(gameState.currentRound)) {
+    startVoting();
+  } else {
+    gameState.phase = 'roundSummary';
+    broadcastState();
+  }
 }
 
 function startVoting() {
   gameState.phase = 'voting';
   gameState.votes = {};
-  gameState.votingTimeLeft = 60;
+  gameState.votingTimeLeft = 90;
   broadcastState();
   gameState.votingInterval = setInterval(() => {
     gameState.votingTimeLeft--;
@@ -283,106 +389,168 @@ function startVoting() {
 function resolveVoting() {
   clearInterval(gameState.votingInterval);
   const tally = {};
-  Object.values(gameState.votes).forEach(vid => {
-    tally[vid] = (tally[vid] || 0) + 1;
-  });
+  Object.values(gameState.votes).forEach(vName => { tally[vName] = (tally[vName] || 0) + 1; });
 
-  let maxVotes = 0, topId = null;
-  for (const [id, count] of Object.entries(tally)) {
-    if (count > maxVotes) { maxVotes = count; topId = id; }
+  let maxVotes = 0, accusedName = null;
+  for (const [name, count] of Object.entries(tally)) {
+    if (count > maxVotes) { maxVotes = count; accusedName = name; }
   }
-  const isTie = Object.values(tally).filter(c => c === maxVotes).length > 1;
-  const liarCaught = !isTie && topId === gameState.liarId;
 
-  Object.entries(gameState.players).forEach(([sid, player]) => {
-    const puUsed = gameState.powerupsUsed[sid] || false;
-    const mult = puUsed ? 2 : 1;
-    const votedFor = gameState.votes[sid];
-
-    if (sid === gameState.liarId) {
-      if (liarCaught) {
-        player.score = Math.max(0, player.score - Math.round(player.score * 0.20));
-      }
-    } else {
-      const votedCorrectly = votedFor === gameState.liarId;
-      if (votedCorrectly) {
-        player.score += Math.round(player.score * 0.10 * mult);
-      } else {
-        player.score = Math.max(0, player.score - Math.round(player.score * 0.10 * mult));
-      }
-    }
-  });
-
-  if (topId && topId !== gameState.liarId && !isTie) {
-    const accused = gameState.players[topId];
-    if (accused) {
-      accused.score = Math.max(0, accused.score - Math.round(accused.score * 0.10));
-    }
+  let liarCaught = false;
+  if (accusedName === gameState.liarName && maxVotes >= 3) {
+    liarCaught = true;
+    if (gameState.players[gameState.liarName]) gameState.players[gameState.liarName].score -= 300;
   }
+
+  Object.entries(gameState.votes).forEach(([voterName, votedFor]) => {
+    if (voterName === gameState.liarName) return; 
+    const p = gameState.players[voterName];
+    if (!p) return;
+    if (votedFor === gameState.liarName) p.score += 300;
+    else p.score -= 100;
+  });
 
   gameState.liarHistory.push({
     round: gameState.currentRound,
-    liarId: gameState.liarId,
-    liarName: gameState.players[gameState.liarId]?.name || '?',
+    liarName: gameState.liarName,
     caught: liarCaught,
-    accusedId: topId,
-    accusedName: gameState.players[topId]?.name || '?',
+    accusedName: accusedName || 'Brak'
   });
 
   if (liarCaught) {
-    gameState.lastLiarId = gameState.liarId;
     Object.values(gameState.players).forEach(p => p.isLiar = false);
-    gameState.liarId = null;
+    gameState.liarName = pickNewLiar(null);
   }
 
-  gameState.phase = gameState.currentRound >= gameState.totalRounds ? 'finalSummary' : 'roundSummary';
+  gameState.phase = 'votingResults';
   broadcastState();
 }
 
-function pickNewLiar() {
-  const ids = Object.keys(gameState.players).filter(id => id !== gameState.lastLiarId);
-  if (ids.length === 0) return Object.keys(gameState.players)[0];
-  return ids[Math.floor(Math.random() * ids.length)];
-}
-
-function buildRoundOrder(playerIds, lastFirstId) {
-  const shuffled = [...playerIds].sort(() => Math.random() - 0.5);
-  if (lastFirstId && shuffled[0] === lastFirstId) {
-    const swap = Math.floor(Math.random() * (shuffled.length - 1)) + 1;
-    [shuffled[0], shuffled[swap]] = [shuffled[swap], shuffled[0]];
-  }
-  return shuffled;
+function pickNewLiar(excludeName, pool) {
+  const names = pool || Object.keys(gameState.players).filter(n => n !== excludeName);
+  if (names.length === 0) return Object.keys(gameState.players)[0];
+  const chosen = names[Math.floor(Math.random() * names.length)];
+  if (gameState.players[chosen]) gameState.players[chosen].isLiar = true;
+  return chosen;
 }
 
 function startNextRound() {
   gameState.currentRound++;
-  if (gameState.currentRound > gameState.totalRounds) {
-    gameState.phase = 'finalSummary'; broadcastState(); return;
+  Object.values(gameState.players).forEach(p => p.wrongAnswers = 0);
+
+  if (gameState.currentRound === 1) {
+    Object.values(gameState.players).forEach(p => p.isLiar = false);
+    gameState.liarName = pickNewLiar(null);
   }
 
-  if (!gameState.liarId) gameState.liarId = pickNewLiar();
-  Object.values(gameState.players).forEach(p => p.isLiar = false);
-  if (gameState.players[gameState.liarId]) gameState.players[gameState.liarId].isLiar = true;
+  if (gameState.currentRound === 11) {
+    setupRound11();
+    return;
+  }
 
-  let available = gameState.questions.filter((_, i) => !gameState.usedQuestions.includes(i));
-  if (available.length === 0) { gameState.usedQuestions = []; available = gameState.questions; }
-  const qIndex = gameState.questions.indexOf(available[0]);
-  gameState.usedQuestions.push(qIndex);
-  const question = gameState.questions[qIndex];
+  const qIndex = gameState.currentRound - 1;
+  const question = gameState.questions[qIndex] || gameState.questions[0];
+  
+  // Kolejność: od najmniejszej liczby punktów do największej
+  gameState.roundOrder = Object.values(gameState.players)
+    .sort((a, b) => a.score - b.score)
+    .map(p => p.name);
 
-  const playerIds = Object.keys(gameState.players);
-  const lastFirst = gameState.roundData?.roundOrder?.[0] || null;
-  gameState.roundOrder = buildRoundOrder(playerIds, lastFirst);
   gameState.currentTurnIndex = 0;
   gameState.roundData = {
     questionText: question.text,
     answers: question.answers,
     revealedAnswers: [],
-    roundOrder: [...gameState.roundOrder],
   };
   gameState.phase = 'round';
   broadcastState();
   startTurnTimer();
+}
+
+function setupRound11() {
+  const sorted = Object.values(gameState.players).sort((a, b) => b.score - a.score);
+  gameState.top2 = sorted.slice(0, 2).map(p => p.name);
+  
+  Object.values(gameState.players).forEach(p => p.isLiar = false);
+  if (gameState.top2.includes(gameState.liarName)) {
+    gameState.players[gameState.liarName].isLiar = true;
+  } else {
+    gameState.liarName = pickNewLiar(null, gameState.top2);
+  }
+
+  const qIndex = 10;
+  const question = gameState.questions[qIndex];
+
+  // Zaczyna gracz z MNIEJSZĄ ilością punktów spośród Top 2
+  const starter = gameState.players[gameState.top2[0]].score < gameState.players[gameState.top2[1]].score ? gameState.top2[0] : gameState.top2[1];
+  const second = starter === gameState.top2[0] ? gameState.top2[1] : gameState.top2[0];
+  
+  gameState.roundOrder = [starter, second, starter, second, starter, second]; // 3 tury naprzemiennie
+  gameState.currentTurnIndex = 0;
+  gameState.roundData = { questionText: question.text, answers: question.answers, revealedAnswers: [] };
+  gameState.phase = 'round';
+  broadcastState();
+  startTurnTimer();
+}
+
+function endRound11() {
+  gameState.phase = 'speeches';
+  // Mowy: najpierw gracz z większą ilością punktów z Top 2
+  const firstSpeaker = gameState.players[gameState.top2[0]].score >= gameState.players[gameState.top2[1]].score ? gameState.top2[0] : gameState.top2[1];
+  gameState.speechPlayerName = firstSpeaker;
+  gameState.votingTimeLeft = 90;
+  broadcastState();
+
+  gameState.votingInterval = setInterval(() => {
+    gameState.votingTimeLeft--;
+    io.emit('votingTimer', { timeLeft: gameState.votingTimeLeft });
+    if (gameState.votingTimeLeft <= 0) {
+      clearInterval(gameState.votingInterval);
+      const secondSpeaker = gameState.top2.find(n => n !== firstSpeaker);
+      if (gameState.speechPlayerName === firstSpeaker) {
+        gameState.speechPlayerName = secondSpeaker;
+        gameState.votingTimeLeft = 90;
+        broadcastState();
+        gameState.votingInterval = setInterval(() => {
+          gameState.votingTimeLeft--;
+          io.emit('votingTimer', { timeLeft: gameState.votingTimeLeft });
+          if (gameState.votingTimeLeft <= 0) {
+            clearInterval(gameState.votingInterval);
+            startFinalVoting();
+          }
+        }, 1000);
+      }
+    }
+  }, 1000);
+}
+
+function startFinalVoting() {
+  gameState.phase = 'finalVoting';
+  gameState.votes = {};
+  gameState.votingTimeLeft = 90;
+  broadcastState();
+  gameState.votingInterval = setInterval(() => {
+    gameState.votingTimeLeft--;
+    io.emit('votingTimer', { timeLeft: gameState.votingTimeLeft });
+    if (gameState.votingTimeLeft <= 0) {
+      clearInterval(gameState.votingInterval);
+      resolveFinalVoting();
+    }
+  }, 1000);
+}
+
+function resolveFinalVoting() {
+  clearInterval(gameState.votingInterval);
+  const tally = {};
+  Object.values(gameState.votes).forEach(vName => { tally[vName] = (tally[vName] || 0) + 1; });
+  let maxVotes = 0, accusedName = null;
+  for (const [name, count] of Object.entries(tally)) {
+    if (count > maxVotes) { maxVotes = count; accusedName = name; }
+  }
+
+  gameState.liarHistory.push({ round: 11, liarName: gameState.liarName, caught: accusedName === gameState.liarName, accusedName: accusedName || 'Brak' });
+  gameState.phase = 'finalSummary';
+  broadcastState();
 }
 
 app.post('/admin/login', (req, res) => {
@@ -390,40 +558,35 @@ app.post('/admin/login', (req, res) => {
   else res.status(401).json({ ok: false });
 });
 
-app.post('/admin/questions', (req, res) => {
-  if (req.body.password !== ADMIN_PASSWORD) return res.status(401).json({ ok: false });
-  if (gameState.phase !== 'lobby') return res.status(400).json({ ok: false, msg: 'Gra już trwa' });
-  gameState.questions = req.body.questions;
-  res.json({ ok: true });
-});
-
-app.get('/admin/questions', (req, res) => res.json(gameState.questions));
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-
 io.on('connection', (socket) => {
   socket.on('joinAdmin', () => {
     gameState.adminSocketId = socket.id;
-    socket.emit('adminJoined', { questions: gameState.questions });
     broadcastState();
   });
 
   socket.on('joinGame', ({ name }) => {
-    if (gameState.phase !== 'lobby') { socket.emit('error', 'Gra już trwa.'); return; }
-    if (Object.keys(gameState.players).length >= 7) { socket.emit('error', 'Maksymalna liczba graczy osiągnięta.'); return; }
-    gameState.players[socket.id] = { name, score: 0, isLiar: false };
-    gameState.powerupsUsed[socket.id] = false;
-    broadcastState();
+    const normName = name.trim();
+    if (gameState.players[normName]) {
+      if (gameState.players[normName].connected) {
+        socket.emit('error', 'Gracz o tym imieniu jest już w grze.');
+        return;
+      }
+      gameState.players[normName].socketId = socket.id;
+      gameState.players[normName].connected = true;
+      broadcastState();
+    } else {
+      if (gameState.phase !== 'lobby') { socket.emit('error', 'Gra już trwa.'); return; }
+      if (Object.keys(gameState.players).length >= 7) { socket.emit('error', 'Maksymalna liczba graczy osiągnięta.'); return; }
+      gameState.players[normName] = { name: normName, socketId: socket.id, score: 0, isLiar: false, connected: true, wrongAnswers: 0 };
+      broadcastState();
+    }
   });
 
   socket.on('startGame', () => {
     if (socket.id !== gameState.adminSocketId) return;
     if (Object.keys(gameState.players).length < 2) { socket.emit('error', 'Potrzeba co najmniej 2 graczy.'); return; }
     gameState.currentRound = 0;
-    gameState.lastLiarId = null;
     gameState.liarHistory = [];
-    gameState.usedQuestions = [];
-    Object.values(gameState.players).forEach(p => p.isLiar = false);
-    Object.keys(gameState.players).forEach(id => gameState.powerupsUsed[id] = false);
     startNextRound();
   });
 
@@ -432,15 +595,11 @@ io.on('connection', (socket) => {
     startNextRound();
   });
 
-  socket.on('startVoting', () => {
-    if (socket.id !== gameState.adminSocketId) return;
-    startVoting();
-  });
-
   socket.on('submitAnswer', ({ answer }) => {
     if (gameState.phase !== 'round') return;
-    const currentId = gameState.roundOrder[gameState.currentTurnIndex];
-    if (socket.id !== currentId) return;
+    const currentName = gameState.roundOrder[gameState.currentTurnIndex];
+    const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
+    if (!player || player.name !== currentName) return;
     clearTimeout(gameState.turnTimer);
 
     const rd = gameState.roundData;
@@ -448,50 +607,55 @@ io.on('connection', (socket) => {
 
     if (idx >= 0) {
       const ans = rd.answers[idx];
-      gameState.players[socket.id].score += ans.points;
-      rd.revealedAnswers.push({ index: idx, text: ans.text, points: ans.points, byName: gameState.players[socket.id].name });
+      player.score += ans.points;
+      rd.revealedAnswers.push({ index: idx, text: ans.text, points: ans.points, byName: player.name });
       io.emit('timerStart', { duration: 5, phase: 'reveal', correct: true, message: `Trafiłeś! +${ans.points} pkt` });
-      broadcastState();
       gameState.revealTimer = setTimeout(() => nextTurn(), 5000);
     } else {
+      gameState.lastWrongAnswer = { playerName: player.name, text: answer };
       io.emit('timerStart', { duration: 5, phase: 'reveal', correct: false, message: 'Zła odpowiedź!' });
-      broadcastState();
-      gameState.revealTimer = setTimeout(() => nextTurn(), 5000);
+      broadcastState(); // Update admin state to show wrong answer override
+      gameState.revealTimer = setTimeout(() => {
+        if (gameState.currentRound === 11) {
+          player.wrongAnswers++;
+          if (player.wrongAnswers >= 2) { endGameInstantly(player.name); return; }
+        }
+        nextTurn();
+      }, 5000);
     }
   });
 
-  socket.on('vote', ({ votedId }) => {
-    if (gameState.phase !== 'voting') return;
-    if (!gameState.players[socket.id]) return;
-    gameState.votes[socket.id] = votedId;
-    broadcastState();
+  socket.on('adminOverride', ({ answerIndex }) => {
+    if (socket.id !== gameState.adminSocketId || !gameState.lastWrongAnswer || gameState.phase !== 'round') return;
+    clearTimeout(gameState.revealTimer);
+    
+    const playerName = gameState.lastWrongAnswer.playerName;
+    const player = gameState.players[playerName];
+    const rd = gameState.roundData;
+    const ans = rd.answers[answerIndex];
+
+    if (player && ans && !rd.revealedAnswers.some(r => r.index === answerIndex)) {
+      player.score += ans.points;
+      rd.revealedAnswers.push({ index: answerIndex, text: ans.text, points: ans.points, byName: playerName });
+      io.emit('timerStart', { duration: 4, phase: 'reveal', correct: true, message: `Korekta Admina: Trafiłeś! +${ans.points} pkt` });
+      gameState.lastWrongAnswer = null;
+      gameState.revealTimer = setTimeout(() => nextTurn(), 4000);
+    }
   });
 
-  socket.on('usePowerup', () => {
-    if (gameState.phase !== 'voting') return;
-    if (!gameState.players[socket.id]) return;
-    if (gameState.powerupsUsed[socket.id]) return;
-    gameState.powerupsUsed[socket.id] = true;
-    broadcastState();
-  });
-
-  socket.on('resetGame', () => {
-    if (socket.id !== gameState.adminSocketId) return;
-    gameState.phase = 'lobby';
-    gameState.players = {};
-    gameState.powerupsUsed = {};
-    gameState.currentRound = 0;
-    gameState.liarId = null;
-    gameState.lastLiarId = null;
-    gameState.votes = {};
-    gameState.roundData = null;
-    gameState.liarHistory = [];
+  socket.on('vote', ({ votedName }) => {
+    if (!['voting', 'finalVoting'].includes(gameState.phase)) return;
+    const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
+    if (!player) return;
+    if (gameState.phase === 'finalVoting' && gameState.top2.includes(player.name)) return; // Top 2 cannot vote in final
+    gameState.votes[player.name] = votedName;
     broadcastState();
   });
 
   socket.on('disconnect', () => {
-    if (gameState.players[socket.id]) { delete gameState.players[socket.id]; broadcastState(); }
     if (gameState.adminSocketId === socket.id) gameState.adminSocketId = null;
+    const p = Object.values(gameState.players).find(x => x.socketId === socket.id);
+    if (p) { p.connected = false; broadcastState(); }
   });
 });
 
