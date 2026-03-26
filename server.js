@@ -553,6 +553,9 @@ function resolveFinalVoting() {
   broadcastState();
 }
 
+// Ta linijka naprawia problem:
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+
 app.post('/admin/login', (req, res) => {
   if (req.body.password === ADMIN_PASSWORD) res.json({ ok: true });
   else res.status(401).json({ ok: false });
