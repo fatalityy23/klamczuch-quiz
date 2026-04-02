@@ -47,7 +47,6 @@
   .player-chip.active { border-color:var(--yellow); box-shadow:0 0 10px rgba(255,215,0,0.3); transform:scale(1.05); }
   .player-chip.offline { opacity:0.5; text-decoration:line-through; }
   
-  /* ZMODYFIKOWANE STYLE DLA KAFELKÓW ODPOWIEDZI (Zmniejszone o ~40-50%) */
   .answer-tile {
     background:linear-gradient(90deg, #16213e, rgba(22,33,62,0.4)); border-left:4px solid var(--blue);
     border-radius:6px; padding:6px 10px; margin:4px 0; display:flex; justify-content:space-between; align-items:center;
@@ -153,7 +152,8 @@
     </div>
     
     <div style="display:flex; flex-direction:column; gap:20px;">
-      <div class="card">
+      
+      <div class="card" id="revealed-answers-card">
         <h3>Odpowiedzi (10)</h3>
         <div id="revealed-answers"></div>
       </div>
@@ -269,15 +269,21 @@ socket.on('state', s => {
     document.getElementById('my-name-display').textContent = myName;
     document.getElementById('question-text').textContent = s.questionText;
 
+    // LOGIKA UKRYWANIA DLA KŁAMCZUCHA
     if (s.liarAnswers) {
+      // Dla Kłamczucha
       document.getElementById('liar-panel').style.display = 'block';
+      document.getElementById('revealed-answers-card').style.display = 'none'; // UKRYJ tablicę z odpowiedziami
+      
       const revIdxs = (s.revealedAnswers || []).map(r => r.index);
       document.getElementById('liar-answers-list').innerHTML = s.liarAnswers.map((a, i) => `
         <div class="liar-answer ${revIdxs.includes(i) ? 'revealed' : ''}">
           <span>${a.text}</span><span style="color:var(--yellow)">${a.points}</span>
         </div>`).join('');
     } else {
+      // Dla standardowego gracza
       document.getElementById('liar-panel').style.display = 'none';
+      document.getElementById('revealed-answers-card').style.display = 'block'; // POKAŻ tablicę z odpowiedziami
     }
 
     const isMyTurn = s.currentPlayerName === myName;
@@ -298,6 +304,7 @@ socket.on('state', s => {
 
     document.getElementById('answer-section').style.display = isMyTurn ? 'block' : 'none';
 
+    // Aktualizacja kafelków odbywa się zawsze, ale dla kłamczucha kontener i tak jest ukryty
     const ansContainer = document.getElementById('revealed-answers');
     ansContainer.innerHTML = '';
     const count = s.answerCount || 10;
