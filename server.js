@@ -280,6 +280,8 @@ function broadcastState() {
   if (gameState.roundData) {
     base.questionText = gameState.roundData.questionText;
     base.revealedAnswers = gameState.roundData.revealedAnswers;
+    base.wrongAnswersList = gameState.roundData.wrongAnswersList; // DODANO
+    base.answerCount = gameState.roundData.answers.length;        // DODANO
     base.roundOrder = gameState.roundOrder;
     base.currentTurnIndex = gameState.currentTurnIndex;
     base.currentPlayerName = gameState.roundOrder[gameState.currentTurnIndex] || null;
@@ -423,7 +425,6 @@ function resolveVoting() {
   
   if (liarCaught) {
     if (gameState.players[gameState.liarName]) {
-        // Przywrócono Math.max, żeby kłamczuch nie zszedł na minus
         gameState.players[gameState.liarName].score = Math.max(0, gameState.players[gameState.liarName].score - 300);
         changes[gameState.liarName] = -300;
     }
@@ -437,7 +438,6 @@ function resolveVoting() {
         p.score += 300;
         changes[voterName] = 300;
     } else {
-        // Przywrócono Math.max, żeby błędnie głosujący nie zeszli na minus
         p.score = Math.max(0, p.score - 100);
         changes[voterName] = -100;
     }
@@ -491,7 +491,8 @@ function startNextRound() {
     .map(p => p.name);
 
   gameState.currentTurnIndex = 0;
-  gameState.roundData = { questionText: question.text, answers: question.answers, revealedAnswers: [] };
+  // DODANO: wrongAnswersList do struktury rundy
+  gameState.roundData = { questionText: question.text, answers: question.answers, revealedAnswers: [], wrongAnswersList: [] };
   gameState.phase = 'round';
   broadcastState();
   startTurnTimer();
@@ -512,7 +513,8 @@ function setupRound11() {
   
   gameState.roundOrder = [starter, second, starter, second, starter, second]; 
   gameState.currentTurnIndex = 0;
-  gameState.roundData = { questionText: question.text, answers: question.answers, revealedAnswers: [] };
+  // DODANO: wrongAnswersList do struktury rundy
+  gameState.roundData = { questionText: question.text, answers: question.answers, revealedAnswers: [], wrongAnswersList: [] };
   gameState.phase = 'round';
   broadcastState();
   startTurnTimer();
@@ -661,6 +663,7 @@ io.on('connection', (socket) => {
       gameState.revealTimer = setTimeout(() => nextTurn(), 4000);
     } else {
       gameState.lastWrongAnswer = { playerName: player.name, text: answer };
+      rd.wrongAnswersList.push({ text: answer, byName: player.name }); // DODANO: Zapisanie błędnej odpowiedzi
       io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Zła odpowiedź!' });
       broadcastState();
       gameState.revealTimer = setTimeout(() => {
@@ -683,6 +686,11 @@ io.on('connection', (socket) => {
     if (player && ans && !rd.revealedAnswers.some(r => r.index === answerIndex)) {
       player.score += ans.points;
       rd.revealedAnswers.push({ index: answerIndex, text: ans.text, points: ans.points, byName: playerName });
+      
+      // DODANO: Usunięcie błędnej odpowiedzi z listy po interwencji admina
+      const wIdx = rd.wrongAnswersList.findIndex(w => w.text === gameState.lastWrongAnswer.text && w.byName === playerName);
+      if (wIdx !== -1) rd.wrongAnswersList.splice(wIdx, 1);
+
       io.emit('timerStart', { duration: 3, phase: 'reveal', correct: true, message: `Korekta Admina: Trafiłeś! +${ans.points} pkt` });
       gameState.lastWrongAnswer = null;
       gameState.revealTimer = setTimeout(() => nextTurn(), 3000);

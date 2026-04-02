@@ -12,7 +12,6 @@
     --text:#f0f0f0; --muted:#a0a0b0; --green:#00e676; --yellow:#ffd700; --blue:#00b4d8;
   }
   
-  /* BAZOWY ROZMIAR CZCIONKI DLA STANDARDOWYCH EKRANÓW */
   html { font-size: 16px; }
 
   * { box-sizing:border-box; margin:0; padding:0; font-family:'Poppins', sans-serif; }
@@ -84,16 +83,15 @@
     display:none; flex-direction:column; justify-content:center; align-items:center; z-index:9999;
   }
 
-  /* --- ZMIANY SKALOWANIA DLA DUŻYCH EKRANÓW (powyżej 1600px i 2000px) --- */
   @media(min-width: 1600px) {
-    html { font-size: 20px; } /* Powiększa wszystkie elementy bazujące na 'rem' */
+    html { font-size: 20px; }
     .screen { max-width: 1500px; gap: 30px; }
     .card { padding: 35px; }
     #game-layout { gap: 40px; }
   }
 
   @media(min-width: 2000px) {
-    html { font-size: 24px; } /* Jeszcze większe UI dla ekranów 4K */
+    html { font-size: 24px; }
     .screen { max-width: 2000px; gap: 40px; }
     .card { padding: 45px; }
   }
@@ -157,6 +155,12 @@
         <h3>Odpowiedzi (10)</h3>
         <div id="revealed-answers"></div>
       </div>
+      
+      <div class="card" id="wrong-answers-card" style="display:none; border:1px solid var(--accent);">
+        <h3 style="color:var(--accent);">Błędne strzały</h3>
+        <div id="wrong-answers-list"></div>
+      </div>
+
       <div id="liar-panel">
         <h3 style="color:var(--accent); font-weight: 800;">🔴 KŁAMCZUCH</h3>
         <div id="liar-answers-list"></div>
@@ -206,10 +210,8 @@ let myName = '';
 let myVote = null;
 let timerInterval = null;
 
-// --- AUDIO CONTEXT (DO DŹWIĘKU ODLICZANIA) ---
 let audioCtx = null;
 
-// Inicjalizacja dźwięku. Wymaga akcji użytkownika (kliknięcia), żeby przeglądarka na to pozwoliła.
 function initAudio() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -219,7 +221,6 @@ function initAudio() {
   }
 }
 
-// Funkcja generująca z kodu krótkie "tyknięcie".
 function playTick() {
   if (!audioCtx) return;
   const osc = audioCtx.createOscillator();
@@ -228,16 +229,15 @@ function playTick() {
   osc.connect(gainNode);
   gainNode.connect(audioCtx.destination);
   
-  osc.type = 'sine'; // Rodzaj fali dźwiękowej
-  osc.frequency.setValueAtTime(800, audioCtx.currentTime); // Wysokość dźwięku
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(800, audioCtx.currentTime);
   
-  gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); // Głośność (0.1 to 10%)
-  gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05); // Szybkie ściszenie
+  gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+  gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
   
   osc.start(audioCtx.currentTime);
   osc.stop(audioCtx.currentTime + 0.05);
 }
-// ---------------------------------------------
 
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -245,7 +245,7 @@ function showScreen(id) {
 }
 
 function joinGame() {
-  initAudio(); // Odblokowanie dźwięku przy pierwszym kliknięciu
+  initAudio();
   const name = document.getElementById('player-name').value.trim();
   if (name) socket.emit('joinGame', { name });
 }
@@ -254,7 +254,9 @@ socket.on('state', s => {
   if (s.myName) myName = s.myName;
   document.getElementById('pause-overlay').style.display = s.isPaused ? 'flex' : 'none';
 
+  // FIX BŁĘDU Z DŹWIĘKIEM (zatrzymanie zegara przy powrocie do lobby)
   if (s.phase === 'lobby') {
+    clearInterval(timerInterval);
     showScreen('screen-lobby');
     const c = document.getElementById('lobby-players');
     c.innerHTML = s.players.map(p => `<span class="player-chip ${p.connected ? '' : 'offline'}">${p.name}</span>`).join('');
@@ -277,14 +279,13 @@ socket.on('state', s => {
       document.getElementById('liar-panel').style.display = 'none';
     }
 
-    // SPRAWDZENIE CZYJA JEST KOLEJ - EDYCJA NAPISÓW
     const isMyTurn = s.currentPlayerName === myName;
     const turnNameEl = document.getElementById('turn-name');
     const turnLabelEl = document.getElementById('turn-label');
 
     if (isMyTurn) {
-      turnNameEl.textContent = ''; // Czyścimy imię
-      turnLabelEl.textContent = '👉 TWOJA KOLEJ 👈'; // Wstawiamy specjalny komunikat
+      turnNameEl.textContent = '';
+      turnLabelEl.textContent = '👉 TWOJA KOLEJ 👈';
       turnLabelEl.style.color = 'var(--green)';
       turnLabelEl.style.fontWeight = 'bold';
     } else {
@@ -296,13 +297,43 @@ socket.on('state', s => {
 
     document.getElementById('answer-section').style.display = isMyTurn ? 'block' : 'none';
 
-    renderAnswerSlots('revealed-answers', s.allAnswers, s.revealedAnswers, false);
+    // RENDEROWANIE GŁÓWNEJ TABLICY Z ODPOWIEDZIAMI (zawsze 10 miejsc i znaki zapytania)
+    const ansContainer = document.getElementById('revealed-answers');
+    ansContainer.innerHTML = '';
+    const count = s.answerCount || 10;
+    for (let i = 0; i < count; i++) {
+      const rev = s.revealedAnswers?.find(r => r.index === i);
+      const tile = document.createElement('div');
+      tile.className = 'answer-tile' + (rev ? '' : ' hidden');
+      
+      if (rev) {
+        let author = rev.byName !== 'System' ? ` <small style="color:var(--muted); margin-left:8px;">(${rev.byName})</small>` : '';
+        tile.innerHTML = `<span>${i + 1}. ${rev.text}${author}</span><span class="pts">${rev.points}</span>`;
+      } else {
+        tile.innerHTML = `<span>${i + 1}. ???</span><span class="pts">---</span>`;
+      }
+      ansContainer.appendChild(tile);
+    }
+
+    // RENDEROWANIE BŁĘDNYCH ODPOWIEDZI
+    const wrongContainer = document.getElementById('wrong-answers-list');
+    wrongContainer.innerHTML = '';
+    if (s.wrongAnswersList && s.wrongAnswersList.length > 0) {
+        s.wrongAnswersList.forEach(w => {
+            wrongContainer.innerHTML += `<div style="color:var(--accent); padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.05);">❌ ${w.text} <small style="color:var(--muted)">(${w.byName})</small></div>`;
+        });
+        document.getElementById('wrong-answers-card').style.display = 'block';
+    } else {
+        document.getElementById('wrong-answers-card').style.display = 'none';
+    }
+
     renderScoreboard('scoreboard', s.players);
   }
 
   if (s.phase === 'roundSummary') {
     showScreen('screen-round-summary');
     document.getElementById('rs-subtitle').textContent = s.isVotingNext ? "PRZYGOTUJ SIĘ NA GŁOSOWANIE" : "PRZYGOTUJ SIĘ NA KOLEJNĄ RUNDĘ";
+    // Podsumowanie - używamy starej funkcji, żeby ładnie wylistować wszystko
     renderAnswerSlots('rs-all-answers', s.allAnswers, s.revealedAnswers, false);
   }
 
@@ -349,6 +380,7 @@ socket.on('state', s => {
   }
 });
 
+// Ta funkcja jest teraz używana tylko przy ekranie podsumowania rundy
 function renderAnswerSlots(containerId, allAnswers, revealed, showAllText) {
   const container = document.getElementById(containerId);
   container.innerHTML = '';
@@ -360,9 +392,9 @@ function renderAnswerSlots(containerId, allAnswers, revealed, showAllText) {
     tile.className = 'answer-tile' + (rev || showAllText ? '' : ' hidden');
     
     let content = rev || showAllText ? ans.text : '???';
-    let author = rev && rev.byName !== 'System' ? ` <small>(${rev.byName})</small>` : '';
+    let author = rev && rev.byName !== 'System' ? ` <small style="color:var(--muted)">(${rev.byName})</small>` : '';
     
-    tile.innerHTML = `<span>${content}${author}</span><span class="pts">${ans.points}</span>`;
+    tile.innerHTML = `<span>${i + 1}. ${content}${author}</span><span class="pts">${ans.points}</span>`;
     container.appendChild(tile);
   });
 }
@@ -384,7 +416,6 @@ socket.on('timerStart', ({ duration, phase, correct, message }) => {
 
   let t = duration;
   
-  // Pierwsze wykonanie od razu (przed ruszeniem interwału)
   count.textContent = t + 's';
   bar.style.width = '100%';
 
@@ -393,15 +424,11 @@ socket.on('timerStart', ({ duration, phase, correct, message }) => {
     count.textContent = t + 's';
     bar.style.width = (t / duration * 100) + '%';
     
-    // LOGIKA DŹWIĘKU ODLICZANIA DLA AKTYWNEGO GRACZA
-    // Sprawdzamy czy to panel wpisywania odpowiedzi i czy dany gracz ma go widocznego
     if (phase === 'answer' && document.getElementById('answer-section').style.display === 'block') {
         if (t <= 5 && t > 0) {
-            // Jak zostało 5s lub mniej, tyka podwójnie (szybciej)
             playTick();
             setTimeout(playTick, 500); 
         } else if (t > 5) {
-            // Standardowe tykanie co sekundę
             playTick();
         }
     }
@@ -429,7 +456,6 @@ function submitAnswer() {
     socket.emit('submitAnswer', { answer: input.value.trim() });
     input.value = '';
     
-    // Ukrywamy panel i zmieniamy napis, żeby gracz wiedział że odpowiedź "poszła"
     document.getElementById('answer-section').style.display = 'none';
     document.getElementById('turn-label').textContent = 'Sprawdzanie odpowiedzi...';
     document.getElementById('turn-label').style.color = 'var(--yellow)';
