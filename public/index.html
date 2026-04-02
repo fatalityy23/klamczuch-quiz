@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KłamczuchQuiz</title>
 <script src="/socket.io/socket.io.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -188,7 +189,13 @@
     <h2>🗳️ Głosowanie</h2>
     <p style="color:var(--muted); font-size:1.3rem; margin-top:-5px; margin-bottom:20px;">Wskaż kłamczucha</p>
     <div id="vote-timer" style="font-size:4rem; color:var(--yellow); font-weight:800;">60</div>
-    <div id="voting-grid" style="margin-top:30px;"></div>
+    <div id="voting-grid" style="margin-top:30px; margin-bottom:30px;"></div>
+    
+    <div id="voting-status" style="margin-top:20px; text-align:center; padding-top:20px; border-top:1px solid rgba(255,255,255,0.1);">
+      <h3 style="color:var(--blue); margin-bottom:15px;">Status głosowania:</h3>
+      <div id="voted-players-list" style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px;"></div>
+    </div>
+
   </div>
 </div>
 
@@ -211,35 +218,39 @@ const socket = io();
 let myName = '';
 let myVote = null;
 let timerInterval = null;
+let currentPhase = ''; // Zmienna śledząca fazę, żeby nie odpalać konfetti wielokrotnie
 
+// --- KONFIGURACJA DŹWIĘKÓW MP3 ---
+const sndCorrect = new Audio('/sounds/correct.mp3');
+const sndWrong = new Audio('/sounds/wrong.mp3');
+const sndFanfare = new Audio('/sounds/fanfare.mp3');
+
+// Tykanie z syntezatora (zostawiamy dla klimatu presji czasu)
 let audioCtx = null;
-
 function initAudio() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
 }
-
 function playTick() {
   if (!audioCtx) return;
   const osc = audioCtx.createOscillator();
   const gainNode = audioCtx.createGain();
-  
-  osc.connect(gainNode);
-  gainNode.connect(audioCtx.destination);
-  
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-  
+  osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+  osc.type = 'sine'; osc.frequency.setValueAtTime(800, audioCtx.currentTime);
   gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
   gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
-  
-  osc.start(audioCtx.currentTime);
-  osc.stop(audioCtx.currentTime + 0.05);
+  osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.05);
 }
+
+// LOGIKA AUTO-RECONNECT
+window.onload = () => {
+  const savedName = localStorage.getItem('klamczuch_name');
+  if (savedName) {
+      document.getElementById('player-name').value = savedName;
+      // Krótkie opóźnienie, żeby upewnić się, że socket zdążył się połączyć
+      setTimeout(() => joinGame(), 500); 
+  }
+};
 
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -249,8 +260,16 @@ function showScreen(id) {
 function joinGame() {
   initAudio();
   const name = document.getElementById('player-name').value.trim();
-  if (name) socket.emit('joinGame', { name });
+  if (name) {
+    localStorage.setItem('klamczuch_name', name); // Zapisujemy nick na dysku
+    socket.emit('joinGame', { name });
+  }
 }
+
+socket.on('error', (msg) => {
+    document.getElementById('join-error').textContent = msg;
+    // Jeśli próba dołączenia się nie udała (gra trwa a nas nie ma w bazie), zostajemy na ekranie głównym.
+});
 
 socket.on('state', s => {
   if (s.myName) myName = s.myName;
@@ -269,21 +288,17 @@ socket.on('state', s => {
     document.getElementById('my-name-display').textContent = myName;
     document.getElementById('question-text').textContent = s.questionText;
 
-    // LOGIKA UKRYWANIA DLA KŁAMCZUCHA
     if (s.liarAnswers) {
-      // Dla Kłamczucha
       document.getElementById('liar-panel').style.display = 'block';
-      document.getElementById('revealed-answers-card').style.display = 'none'; // UKRYJ tablicę z odpowiedziami
-      
+      document.getElementById('revealed-answers-card').style.display = 'none'; 
       const revIdxs = (s.revealedAnswers || []).map(r => r.index);
       document.getElementById('liar-answers-list').innerHTML = s.liarAnswers.map((a, i) => `
         <div class="liar-answer ${revIdxs.includes(i) ? 'revealed' : ''}">
           <span>${a.text}</span><span style="color:var(--yellow)">${a.points}</span>
         </div>`).join('');
     } else {
-      // Dla standardowego gracza
       document.getElementById('liar-panel').style.display = 'none';
-      document.getElementById('revealed-answers-card').style.display = 'block'; // POKAŻ tablicę z odpowiedziami
+      document.getElementById('revealed-answers-card').style.display = 'block'; 
     }
 
     const isMyTurn = s.currentPlayerName === myName;
@@ -304,7 +319,6 @@ socket.on('state', s => {
 
     document.getElementById('answer-section').style.display = isMyTurn ? 'block' : 'none';
 
-    // Aktualizacja kafelków odbywa się zawsze, ale dla kłamczucha kontener i tak jest ukryty
     const ansContainer = document.getElementById('revealed-answers');
     ansContainer.innerHTML = '';
     const count = s.answerCount || 10;
@@ -312,7 +326,6 @@ socket.on('state', s => {
       const rev = s.revealedAnswers?.find(r => r.index === i);
       const tile = document.createElement('div');
       tile.className = 'answer-tile' + (rev ? '' : ' hidden');
-      
       if (rev) {
         let author = rev.byName !== 'System' ? ` <small style="color:var(--muted); margin-left:8px;">(${rev.byName})</small>` : '';
         tile.innerHTML = `<span>${i + 1}. ${rev.text}${author}</span><span class="pts">${rev.points}</span>`;
@@ -332,7 +345,6 @@ socket.on('state', s => {
     } else {
         document.getElementById('wrong-answers-card').style.display = 'none';
     }
-
     renderScoreboard('scoreboard', s.players);
   }
 
@@ -359,6 +371,17 @@ socket.on('state', s => {
       };
       grid.appendChild(card);
     });
+
+    // NOWA LOGIKA: Renderowanie paska postępu głosowania z "ptaszkami"
+    const votedList = document.getElementById('voted-players-list');
+    votedList.innerHTML = '';
+    s.players.forEach(p => {
+        const hasVoted = s.votes && s.votes[p.name];
+        votedList.innerHTML += `
+          <span class="player-chip" style="background:${hasVoted ? 'rgba(0, 230, 118, 0.2)' : 'var(--accent2)'}; border: 1px solid ${hasVoted ? 'var(--green)' : 'rgba(255,255,255,0.1)'}">
+            ${p.name} ${hasVoted ? '✅' : '⏳'}
+          </span>`;
+    });
   }
 
   if (s.phase === 'votingResults') {
@@ -382,7 +405,20 @@ socket.on('state', s => {
   if (s.phase === 'finalSummary') {
     showScreen('screen-final');
     renderScoreboard('final-scoreboard', s.players);
+
+    // LOGIKA EKRANU KOŃCOWEGO - KONFETTI i FANFARY (Odpalane tylko raz przy wejściu do tej fazy)
+    if (currentPhase !== 'finalSummary') {
+        if (typeof confetti === 'function') {
+            confetti({ particleCount: 200, spread: 160, origin: { y: 0.6 } });
+        }
+        sndFanfare.currentTime = 0;
+        // Dźwięk może być zablokowany, jeśli gracz dołączył w trakcie gry i nigdzie nie kliknął,
+        // dlatego zabezpieczamy to blokiem .catch()
+        sndFanfare.play().catch(e => console.log("Błąd odtwarzania fanfar: ", e)); 
+    }
   }
+  
+  currentPhase = s.phase; // Zapisujemy na jakiej fazie jesteśmy, żeby sprawdzić to przy kolejnym odświeżeniu
 });
 
 function renderAnswerSlots(containerId, allAnswers, revealed, showAllText) {
@@ -394,10 +430,8 @@ function renderAnswerSlots(containerId, allAnswers, revealed, showAllText) {
     const rev = revealed?.find(r => r.index === i);
     const tile = document.createElement('div');
     tile.className = 'answer-tile' + (rev || showAllText ? '' : ' hidden');
-    
     let content = rev || showAllText ? ans.text : '???';
     let author = rev && rev.byName !== 'System' ? ` <small style="color:var(--muted)">(${rev.byName})</small>` : '';
-    
     tile.innerHTML = `<span>${i + 1}. ${content}${author}</span><span class="pts">${ans.points}</span>`;
     container.appendChild(tile);
   });
@@ -414,12 +448,22 @@ socket.on('timerStart', ({ duration, phase, correct, message }) => {
     revMsg.textContent = message;
     revMsg.style.background = correct ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 42, 95, 0.2)';
     revMsg.style.color = correct ? 'var(--green)' : 'var(--accent)';
+    document.getElementById('answer-section').style.display = 'none';
+    
+    // ODTWARZANIE DŹWIĘKÓW POPRAWNEJ / ZŁEJ ODPOWIEDZI
+    if (correct) {
+        sndCorrect.currentTime = 0; // Reset na początek pliku
+        sndCorrect.play().catch(e => console.log(e));
+    } else {
+        sndWrong.currentTime = 0;
+        sndWrong.play().catch(e => console.log(e));
+    }
+
   } else {
     revMsg.style.display = 'none';
   }
 
   let t = duration;
-  
   count.textContent = t + 's';
   bar.style.width = '100%';
 
@@ -436,7 +480,6 @@ socket.on('timerStart', ({ duration, phase, correct, message }) => {
             playTick();
         }
     }
-
     if (t <= 0) clearInterval(timerInterval);
   }, 1000);
 });
@@ -459,7 +502,6 @@ function submitAnswer() {
   if (input.value.trim()) {
     socket.emit('submitAnswer', { answer: input.value.trim() });
     input.value = '';
-    
     document.getElementById('answer-section').style.display = 'none';
     document.getElementById('turn-label').textContent = 'Sprawdzanie odpowiedzi...';
     document.getElementById('turn-label').style.color = 'var(--yellow)';

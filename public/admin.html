@@ -76,7 +76,8 @@ function adminLogin() {
     if (d.ok) {
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('main').style.display = 'block';
-      socket.emit('joinAdmin');
+      // ZMIANA: Wysyłamy hasło z prośbą o dostęp
+      socket.emit('joinAdmin', { password: pwd });
     } else alert('Błędne hasło');
   });
 }

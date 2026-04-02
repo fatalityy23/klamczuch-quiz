@@ -40,7 +40,7 @@ let gameState = {
   speechPlayerName: null,
   isPaused: false,
   lastVotingChanges: {},
-  isAnswerLocked: false // DODANO: Flaga blokująca podwójne wysyłanie odpowiedzi i błędy z timerem
+  isAnswerLocked: false
 };
 
 function defaultQuestions() {
@@ -320,7 +320,7 @@ function broadcastState() {
 
 function startTurnTimer() {
   clearTimeout(gameState.turnTimer);
-  gameState.isAnswerLocked = false; // Zdejmujemy blokadę na początku nowej tury
+  gameState.isAnswerLocked = false;
   if (gameState.isPaused) return;
 
   const currentName = gameState.roundOrder[gameState.currentTurnIndex];
@@ -336,7 +336,7 @@ function startTurnTimer() {
 
 function showNoAnswer(playerName) {
   clearTimeout(gameState.turnTimer);
-  gameState.isAnswerLocked = true; // Zakładamy blokadę, żeby opóźniona odpowiedź nie odpaliła drugiego zegara
+  gameState.isAnswerLocked = true;
   
   if (gameState.currentRound === 11 && gameState.players[playerName]) {
     gameState.players[playerName].wrongAnswers++;
@@ -400,7 +400,7 @@ function postRoundRouting() {
 function startVoting() {
   gameState.phase = 'voting';
   gameState.votes = {};
-  gameState.votingTimeLeft = 60;
+  gameState.votingTimeLeft = 90;
   broadcastState();
   if (gameState.votingInterval) clearInterval(gameState.votingInterval);
   gameState.votingInterval = setInterval(() => {
@@ -408,14 +408,16 @@ function startVoting() {
     gameState.votingTimeLeft--;
     io.emit('votingTimer', { timeLeft: gameState.votingTimeLeft });
     if (gameState.votingTimeLeft <= 0) {
-      clearInterval(gameState.votingInterval);
       resolveVoting();
     }
   }, 1000);
 }
 
 function resolveVoting() {
+  if (gameState.phase !== 'voting') return; // Zabezpieczenie przed podwójnym wywołaniem
   clearInterval(gameState.votingInterval);
+  gameState.phase = 'votingResults'; // Zmieniamy fazę NATYCHMIAST
+
   const tally = {};
   Object.values(gameState.votes).forEach(vName => { tally[vName] = (tally[vName] || 0) + 1; });
 
@@ -455,7 +457,6 @@ function resolveVoting() {
     gameState.liarName = pickNewLiar(null);
   }
 
-  gameState.phase = 'votingResults';
   broadcastState();
   
   setTimeout(() => {
@@ -565,13 +566,16 @@ function startFinalVoting() {
     gameState.votingTimeLeft--;
     io.emit('votingTimer', { timeLeft: gameState.votingTimeLeft });
     if (gameState.votingTimeLeft <= 0) {
-      clearInterval(gameState.votingInterval);
       resolveFinalVoting();
     }
   }, 1000);
 }
 
 function resolveFinalVoting() {
+  if (gameState.phase !== 'finalVoting') return; // Blokada podwójnego wywołania
+  clearInterval(gameState.votingInterval);
+  gameState.phase = 'finalSummary';
+  
   const tally = {};
   Object.values(gameState.votes).forEach(vName => { tally[vName] = (tally[vName] || 0) + 1; });
   let maxVotes = 0, accusedName = null;
@@ -579,7 +583,6 @@ function resolveFinalVoting() {
     if (count > maxVotes) { maxVotes = count; accusedName = name; }
   }
   gameState.liarHistory.push({ round: 11, liarName: gameState.liarName, caught: accusedName === gameState.liarName, accusedName: accusedName || 'Brak' });
-  gameState.phase = 'finalSummary';
   broadcastState();
 }
 
@@ -591,9 +594,12 @@ app.post('/admin/login', (req, res) => {
 });
 
 io.on('connection', (socket) => {
-  socket.on('joinAdmin', () => {
-    gameState.adminSocketId = socket.id;
-    broadcastState();
+  
+  socket.on('joinAdmin', (data) => {
+    if (data && data.password === ADMIN_PASSWORD) {
+      gameState.adminSocketId = socket.id;
+      broadcastState();
+    }
   });
 
   socket.on('joinGame', ({ name }) => {
@@ -616,7 +622,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('togglePause', () => {
-    if (socket.id !== gameState.adminSocketId) return;
+    if (socket.id !== gameState.adminSocketId) return; 
     gameState.isPaused = !gameState.isPaused;
     broadcastState();
     if (!gameState.isPaused && gameState.phase === 'round') startTurnTimer();
@@ -648,14 +654,13 @@ io.on('connection', (socket) => {
   });
 
   socket.on('submitAnswer', ({ answer }) => {
-    // Jeśli faza to nie runda, lub gra jest zapauzowana, ALBO odpaliła się blokada isAnswerLocked - ignorujemy.
     if (gameState.phase !== 'round' || gameState.isPaused || gameState.isAnswerLocked) return;
     
     const currentName = gameState.roundOrder[gameState.currentTurnIndex];
     const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
     if (!player || player.name !== currentName) return;
     
-    gameState.isAnswerLocked = true; // ZAKŁADAMY BLOKADĘ (rozwiązuje problem z dublowaniem)
+    gameState.isAnswerLocked = true;
     clearTimeout(gameState.turnTimer);
 
     const rd = gameState.roundData;
@@ -706,8 +711,18 @@ io.on('connection', (socket) => {
     if (!['voting', 'finalVoting'].includes(gameState.phase)) return;
     const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
     if (!player) return;
+    
     gameState.votes[player.name] = votedName;
     broadcastState();
+
+    // Sprawdzamy czy wszyscy aktualnie PODŁĄCZENI gracze oddali głos
+    const expectedVotes = Object.values(gameState.players).filter(p => p.connected).length;
+    const currentVotes = Object.keys(gameState.votes).length;
+
+    if (currentVotes >= expectedVotes) {
+       if (gameState.phase === 'voting') resolveVoting();
+       else if (gameState.phase === 'finalVoting') resolveFinalVoting();
+    }
   });
 
   socket.on('disconnect', () => {
