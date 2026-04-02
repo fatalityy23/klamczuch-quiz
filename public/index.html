@@ -267,6 +267,7 @@ let myVote = null;
 let timerInterval = null;
 let currentPhase = ''; 
 let lastSoundTime = 0; 
+let isGamePaused = false; // ZMIANA: Globalna flaga wstrzymująca tykanie u gracza
 
 let isMuted = localStorage.getItem('kq_muted') === 'true';
 let globalVolume = localStorage.getItem('kq_volume') ? parseFloat(localStorage.getItem('kq_volume')) : 0.5;
@@ -363,6 +364,9 @@ socket.on('globalCountdown', ({ timeLeft }) => {
 
 socket.on('state', s => {
   if (s.myName) myName = s.myName;
+  
+  // Przechwycenie pauzy do globalnej flagi na kliencie
+  isGamePaused = s.isPaused; 
   document.getElementById('pause-overlay').style.display = s.isPaused ? 'flex' : 'none';
 
   if (s.phase === 'lobby') {
@@ -476,7 +480,7 @@ socket.on('state', s => {
   if (s.phase === 'votingResults') {
     showScreen('screen-voting-results');
     
-    // LOGIKA RENDEROWANIA WERDYKTU (Czy złapano kłamczucha)
+    // ZMIANA: Ukrywanie tożsamości kłamczucha jeśli mu się upiekło
     const latestVerdict = s.liarHistory[s.liarHistory.length - 1];
     if (latestVerdict && latestVerdict.round === s.currentRound) {
         const verdictEl = document.getElementById('voting-verdict');
@@ -485,8 +489,7 @@ socket.on('state', s => {
                                    <p style="font-size:1.2rem; margin-top:5px;">Kłamczuchem był gracz: <strong>${latestVerdict.liarName}</strong>. Wybrany zostanie nowy kłamczuch.</p>`;
             verdictEl.style.borderColor = 'var(--green)';
         } else {
-            verdictEl.innerHTML = `<h3 style="color:var(--accent); margin:0; font-size:1.6rem;">💨 Nie wykryto kłamczucha!</h3>
-                                   <p style="font-size:1.2rem; margin-top:5px; color:var(--muted);">Kłamczuchem w tej rundzie pozostaje: <strong>${latestVerdict.liarName}</strong>.</p>`;
+            verdictEl.innerHTML = `<h3 style="color:var(--accent); margin:0; font-size:1.6rem;">💨 Nie wykryto kłamczucha!</h3>`;
             verdictEl.style.borderColor = 'var(--accent)';
         }
     }
@@ -534,14 +537,13 @@ socket.on('state', s => {
   if (s.phase === 'finalSummary') {
     showScreen('screen-final');
     
-    // WERDYKT W FINALE
     const latestVerdict = s.liarHistory[s.liarHistory.length - 1];
     if (latestVerdict && latestVerdict.round === 11) {
         const finalVerdictEl = document.getElementById('final-verdict');
         if (latestVerdict.caught) {
             finalVerdictEl.innerHTML = `<h3 style="color:var(--green); font-size: 1.8rem;">🚨 Kłamczuch (${latestVerdict.liarName}) został ZŁAPANY!</h3>`;
         } else {
-            finalVerdictEl.innerHTML = `<h3 style="color:var(--accent); font-size: 1.8rem;">💨 Kłamczuch (${latestVerdict.liarName}) WYGRAŁ i wymknął się!</h3>`;
+            finalVerdictEl.innerHTML = `<h3 style="color:var(--accent); font-size: 1.8rem;">💨 Kłamczuch WYGRAŁ i wymknął się!</h3>`;
         }
     }
 
@@ -551,6 +553,7 @@ socket.on('state', s => {
         if (typeof confetti === 'function') {
             confetti({ particleCount: 200, spread: 160, origin: { y: 0.6 } });
         }
+        sndFanfare.pause();
         sndFanfare.currentTime = 0;
         sndFanfare.play().catch(e => console.log("Błąd audio:", e)); 
     }
@@ -588,7 +591,7 @@ socket.on('timerStart', ({ duration, phase, correct, message }) => {
     revMsg.style.color = correct ? 'var(--green)' : 'var(--accent)';
     document.getElementById('answer-section').style.display = 'none';
     
-    // ZMIANA: Twardy i jeszcze pewniejszy restryktor dla ucinania i grania audio (Tylko jedno odegranie na 3.5 sekundy)
+    // ZMIANA: Twardy i jeszcze pewniejszy restryktor dla plików audio (3.5s cooldown + wymuszone wstrzymanie poprzedniego)
     const now = Date.now();
     if (now - lastSoundTime > 3500) {
         lastSoundTime = now;
@@ -608,13 +611,16 @@ socket.on('timerStart', ({ duration, phase, correct, message }) => {
   }
 
   let t = duration;
+  let totalDuration = duration;
   count.textContent = t + 's';
   bar.style.width = '100%';
 
   timerInterval = setInterval(() => {
+    if (isGamePaused) return; // ZMIANA: Zamrażanie paska na kliencie podczas pauzy!
+
     t--; 
     count.textContent = t + 's';
-    bar.style.width = (t / duration * 100) + '%';
+    bar.style.width = (t / totalDuration * 100) + '%';
     
     if (phase === 'answer' && document.getElementById('answer-section').style.display === 'block') {
         if (t <= 5 && t > 0) {

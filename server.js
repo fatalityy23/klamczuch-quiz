@@ -30,7 +30,8 @@ let gameState = {
   votingInterval: null,
   roundOrder: [],
   currentTurnIndex: 0,
-  turnTimer: null,
+  turnInterval: null, // ZMIANA: pętla czasu dla tury
+  turnTimeLeft: 0,    // ZMIANA: pamięć ile zostało
   revealTimer: null,
   usedQuestions: [],
   liarHistory: [],
@@ -55,7 +56,7 @@ function runTransition(seconds, callback) {
   let t = seconds;
   io.emit('globalCountdown', { timeLeft: t });
   globalTransitionInterval = setInterval(() => {
-    if (gameState.isPaused) return;
+    if (gameState.isPaused) return; // Zamraża w czasie pauzy
     t--;
     if (t > 0) {
       io.emit('globalCountdown', { timeLeft: t });
@@ -65,8 +66,6 @@ function runTransition(seconds, callback) {
     }
   }, 1000);
 }
-
-// ZESTAWY PYTAŃ (WSZYSTKIE ODWRÓCONE - Najmniej popularne = 1000 pkt, Najbardziej popularne = 100 pkt na dole)
 
 function getSet1() {
   return [
@@ -131,13 +130,12 @@ function testQuestions() {
   return q;
 }
 
-// Funkcja decydująca, którą paczkę pobrać
 function getQuestions(setId) {
     if (setId === 'set1') return getSet1();
     if (setId === 'set2') return getSet2();
     if (setId === 'set3') return getSet3();
     if (setId === 'test') return testQuestions();
-    return getSet1(); // Domyślnie
+    return getSet1(); 
 }
 
 function levenshtein(a, b) {
@@ -225,9 +223,13 @@ function broadcastState() {
 
 function startTurnTimer() {
   clearTransitions();
-  clearTimeout(gameState.turnTimer);
+  clearInterval(gameState.turnInterval);
   gameState.isAnswerLocked = false;
-  if (gameState.isPaused) return;
+  
+  if (gameState.isPaused) {
+    setTimeout(startTurnTimer, 1000);
+    return;
+  }
 
   const currentName = gameState.roundOrder[gameState.currentTurnIndex];
   if (!currentName) {
@@ -235,13 +237,22 @@ function startTurnTimer() {
     return;
   }
   
-  const duration = gameState.currentTurnIndex === 0 ? 35 : 25;
-  io.emit('timerStart', { duration, phase: 'answer' });
-  gameState.turnTimer = setTimeout(() => { showNoAnswer(currentName); }, duration * 1000);
+  gameState.turnTimeLeft = gameState.currentTurnIndex === 0 ? 35 : 25;
+  io.emit('timerStart', { duration: gameState.turnTimeLeft, phase: 'answer' });
+  
+  // ZMIANA: Zastąpiono setTimeout solidnym setInterval z uwzględnieniem pauzy
+  gameState.turnInterval = setInterval(() => {
+    if (gameState.isPaused) return; // Zatrzymuje spadek czasu
+    gameState.turnTimeLeft--;
+    if (gameState.turnTimeLeft <= 0) {
+      clearInterval(gameState.turnInterval);
+      showNoAnswer(currentName);
+    }
+  }, 1000);
 }
 
 function showNoAnswer(playerName) {
-  clearTimeout(gameState.turnTimer);
+  clearInterval(gameState.turnInterval);
   gameState.isAnswerLocked = true;
   
   if (gameState.currentRound === 11 && gameState.players[playerName]) {
@@ -256,7 +267,10 @@ function showNoAnswer(playerName) {
 }
 
 function nextTurn() {
-  if (gameState.isPaused) return;
+  if (gameState.isPaused) {
+      setTimeout(nextTurn, 1000);
+      return;
+  }
   gameState.currentTurnIndex++;
   if (gameState.currentRound === 11) {
     if (gameState.currentTurnIndex >= 6 || gameState.roundData.revealedAnswers.length >= 10) endRound11();
@@ -270,9 +284,17 @@ function nextTurn() {
 function startRoundSummary() {
   gameState.phase = 'roundSummary';
   broadcastState();
-  clearTransitions();
+  clearTransitions(); // Ukrywamy pasek globalnego czasu!
   
-  setTimeout(() => { if (!gameState.isPaused) startRevealSequence(); }, 3000);
+  // ZMIANA: Ciche odliczanie w tle, zatrzymywane w razie pauzy
+  let ticks = 3;
+  function hiddenTick() {
+     if (gameState.isPaused) { setTimeout(hiddenTick, 1000); return; }
+     ticks--;
+     if (ticks <= 0) startRevealSequence();
+     else setTimeout(hiddenTick, 1000);
+  }
+  setTimeout(hiddenTick, 1000);
 }
 
 function startRevealSequence() {
@@ -308,7 +330,7 @@ function postRoundRouting() {
 function startVoting() {
   gameState.phase = 'voting';
   gameState.votes = {};
-  gameState.votingTimeLeft = 90;
+  gameState.votingTimeLeft = 60;
   broadcastState();
   if (gameState.votingInterval) clearInterval(gameState.votingInterval);
   gameState.votingInterval = setInterval(() => {
@@ -533,12 +555,13 @@ io.on('connection', (socket) => {
     if (socket.id !== gameState.adminSocketId) return; 
     gameState.isPaused = !gameState.isPaused;
     broadcastState();
-    if (!gameState.isPaused && gameState.phase === 'round') startTurnTimer();
+    // Odliczanie (setInterval) i timery przejść (runTransition) same ogarną fakt, że jest od-pauzowane
   });
 
   socket.on('stopGame', () => {
     if (socket.id !== gameState.adminSocketId) return;
     clearTransitions();
+    clearInterval(gameState.turnInterval);
     gameState.phase = 'lobby';
     gameState.currentRound = 0;
     gameState.isPaused = false;
@@ -550,7 +573,6 @@ io.on('connection', (socket) => {
     if (socket.id !== gameState.adminSocketId) return;
     if (Object.keys(gameState.players).length < 2) { socket.emit('error', 'Potrzeba co najmniej 2 graczy.'); return; }
     
-    // ZMIANA: Przekazanie identyfikatora wybranego zestawu
     gameState.questions = getQuestions(questionSet);
     
     gameState.currentRound = 0;
@@ -571,7 +593,7 @@ io.on('connection', (socket) => {
     if (!player || player.name !== currentName) return;
     
     gameState.isAnswerLocked = true;
-    clearTimeout(gameState.turnTimer);
+    clearInterval(gameState.turnInterval);
 
     const rd = gameState.roundData;
     const idx = matchAnswer(answer, rd.answers, rd.revealedAnswers.map(r => r.index));
