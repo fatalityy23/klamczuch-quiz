@@ -11,6 +11,10 @@
     --bg:#090910; --card:rgba(26,26,46,0.8); --accent:#ff2a5f; --accent2:#16213e;
     --text:#f0f0f0; --muted:#a0a0b0; --green:#00e676; --yellow:#ffd700; --blue:#00b4d8;
   }
+  
+  /* BAZOWY ROZMIAR CZCIONKI DLA STANDARDOWYCH EKRANÓW */
+  html { font-size: 16px; }
+
   * { box-sizing:border-box; margin:0; padding:0; font-family:'Poppins', sans-serif; }
   body { background:var(--bg); color:var(--text); min-height:100vh; background-image:radial-gradient(circle at top, #1a1a2e, #090910); overflow-x:hidden; }
   h1 { color:var(--accent); font-size:clamp(1.8rem, 4vw, 2.5rem); font-weight:800; text-transform:uppercase; letter-spacing:1px; text-shadow:0 0 10px rgba(255,42,95,0.4); }
@@ -69,7 +73,7 @@
   #voting-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:15px; }
   .vote-card {
     background:rgba(22,33,62,0.8); border:2px solid #333; border-radius:12px; padding:20px;
-    cursor:pointer; transition:all .2s; text-align:center;
+    cursor:pointer; transition:all .2s; text-align:center; font-size: 1.2rem;
   }
   .vote-card.selected { border-color:var(--accent); background:rgba(255,42,95,0.2); }
   
@@ -78,6 +82,20 @@
   #pause-overlay {
     position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85);
     display:none; flex-direction:column; justify-content:center; align-items:center; z-index:9999;
+  }
+
+  /* --- ZMIANY SKALOWANIA DLA DUŻYCH EKRANÓW (powyżej 1600px i 2000px) --- */
+  @media(min-width: 1600px) {
+    html { font-size: 20px; } /* Powiększa wszystkie elementy bazujące na 'rem' */
+    .screen { max-width: 1500px; gap: 30px; }
+    .card { padding: 35px; }
+    #game-layout { gap: 40px; }
+  }
+
+  @media(min-width: 2000px) {
+    html { font-size: 24px; } /* Jeszcze większe UI dla ekranów 4K */
+    .screen { max-width: 2000px; gap: 40px; }
+    .card { padding: 45px; }
   }
 </style>
 </head>
@@ -90,10 +108,10 @@
 
 <div class="screen active" id="screen-join">
   <div style="text-align:center; padding:5vh 0;">
-    <h1>KłamczuchQuiz</h1>
+    <h1 style="font-size: 4rem;">KłamczuchQuiz</h1>
   </div>
   <div class="card" style="max-width:450px; margin:0 auto; width:100%;">
-    <h3>Dołącz do gry</h3>
+    <h3 style="text-align: center;">Dołącz do gry</h3>
     <input type="text" id="player-name" placeholder="Twoje imię..." maxlength="20" style="margin:15px 0;"/>
     <button onclick="joinGame()" style="width:100%;">Dołącz do zabawy</button>
     <p id="join-error" style="color:var(--accent); margin-top:15px; text-align:center; font-weight:600;"></p>
@@ -103,34 +121,34 @@
 <div class="screen" id="screen-lobby">
   <div class="card" style="text-align:center;">
     <h2>Poczekalnia</h2>
-    <div id="lobby-players" style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px;"></div>
+    <div id="lobby-players" style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top: 20px;"></div>
   </div>
 </div>
 
 <div class="screen" id="screen-game">
   <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:15px;">
     <h1>Runda <span id="round-num" style="color:var(--yellow);"></span></h1>
-    <div id="my-name-display" style="color:var(--blue); font-weight:bold;"></div>
+    <div id="my-name-display" style="color:var(--blue); font-weight:bold; font-size: 1.2rem;"></div>
   </div>
   <div id="game-layout">
     <div style="display:flex; flex-direction:column; gap:20px;">
       <div class="card">
-        <h2 id="question-text" style="margin-bottom:20px;"></h2>
-        <div id="turn-info" style="background:rgba(0,0,0,0.3); padding:15px; border-radius:12px; text-align:center;">
-          <span id="turn-name" style="color:var(--yellow); font-size:1.3rem; font-weight:bold;"></span>
-          <span id="turn-label" style="color:var(--muted);"></span>
+        <h2 id="question-text" style="margin-bottom:20px; font-size: 1.8rem;"></h2>
+        <div id="turn-info" style="background:rgba(0,0,0,0.3); padding:20px; border-radius:12px; text-align:center;">
+          <span id="turn-name" style="color:var(--yellow); font-size:1.5rem; font-weight:bold;"></span>
+          <span id="turn-label" style="color:var(--muted); font-size: 1.3rem;"></span>
         </div>
         <div id="timer-section" style="margin:15px 0;">
-          <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar" style="width:100%"></div></div>
-          <div style="text-align:right;"><span id="timer-count" style="color:var(--yellow); font-weight:bold;"></span></div>
+          <div class="timer-bar-wrap" style="height: 15px;"><div class="timer-bar" id="timer-bar" style="width:100%"></div></div>
+          <div style="text-align:right;"><span id="timer-count" style="color:var(--yellow); font-weight:bold; font-size: 1.2rem;"></span></div>
         </div>
         <div id="answer-section" style="display:none; margin-top:20px;">
           <div style="display:flex; gap:10px;">
-            <input type="text" id="answer-input" placeholder="Wpisz odpowiedź..."/>
+            <input type="text" id="answer-input" placeholder="Wpisz odpowiedź..." autocomplete="off"/>
             <button onclick="submitAnswer()" id="answer-btn">Wyślij</button>
           </div>
         </div>
-        <div id="reveal-msg" style="display:none; text-align:center; padding:15px; border-radius:12px; margin-top:15px; font-weight:800;"></div>
+        <div id="reveal-msg" style="display:none; text-align:center; padding:15px; border-radius:12px; margin-top:15px; font-weight:800; font-size: 1.2rem;"></div>
       </div>
     </div>
     
@@ -140,7 +158,7 @@
         <div id="revealed-answers"></div>
       </div>
       <div id="liar-panel">
-        <h3 style="color:var(--accent);">🔴 KŁAMCZUCH</h3>
+        <h3 style="color:var(--accent); font-weight: 800;">🔴 KŁAMCZUCH</h3>
         <div id="liar-answers-list"></div>
       </div>
       <div class="card">
@@ -152,32 +170,33 @@
 </div>
 
 <div class="screen" id="screen-round-summary">
-  <div class="card" style="max-width:800px; margin:0 auto; width:100%;">
+  <div class="card" style="max-width:1000px; margin:0 auto; width:100%;">
     <h1 style="text-align:center; margin-bottom:10px;">Podsumowanie Rundy</h1>
-    <p id="rs-subtitle" style="text-align:center; color:var(--yellow); margin-bottom:20px; font-weight:bold;"></p>
-    <div id="rs-all-answers"></div>
+    <p id="rs-subtitle" style="text-align:center; color:var(--yellow); margin-bottom:20px; font-weight:bold; font-size: 1.3rem;"></p>
+    <div id="rs-all-answers" style="font-size: 1.2rem;"></div>
   </div>
 </div>
 
 <div class="screen" id="screen-voting">
-  <div class="card" style="text-align:center;">
+  <div class="card" style="text-align:center; max-width: 1000px; margin: 0 auto; width: 100%;">
     <h2>🗳️ Głosowanie</h2>
-    <div id="vote-timer" style="font-size:3.5rem; color:var(--yellow); font-weight:800;">60</div>
-    <div id="voting-grid" style="margin-top:20px;"></div>
+    <p style="color:var(--muted); font-size:1.3rem; margin-top:-5px; margin-bottom:20px;">Wskaż kłamczucha</p>
+    <div id="vote-timer" style="font-size:4rem; color:var(--yellow); font-weight:800;">60</div>
+    <div id="voting-grid" style="margin-top:30px;"></div>
   </div>
 </div>
 
 <div class="screen" id="screen-voting-results">
-  <div class="card" style="max-width:700px; margin:0 auto; width:100%;">
-    <h2 style="text-align:center; margin-bottom:20px;">Wyniki Głosowania</h2>
-    <div id="voting-results-list"></div>
+  <div class="card" style="max-width:800px; margin:0 auto; width:100%;">
+    <h2 style="text-align:center; margin-bottom:30px; font-size: 2rem;">Wyniki Głosowania</h2>
+    <div id="voting-results-list" style="font-size: 1.2rem; display: flex; flex-direction: column; gap: 10px;"></div>
   </div>
 </div>
 
 <div class="screen" id="screen-final">
-  <div class="card" style="text-align:center;">
-    <h1 style="color:var(--yellow);">Koniec Gry!</h1>
-    <div id="final-scoreboard" style="margin-top:30px; text-align:left;"></div>
+  <div class="card" style="text-align:center; max-width: 800px; margin: 0 auto; width: 100%;">
+    <h1 style="color:var(--yellow); font-size: 3rem;">Koniec Gry!</h1>
+    <div id="final-scoreboard" style="margin-top:40px; text-align:left; font-size: 1.4rem; display: flex; flex-direction: column; gap: 15px;"></div>
   </div>
 </div>
 
@@ -187,12 +206,46 @@ let myName = '';
 let myVote = null;
 let timerInterval = null;
 
+// --- AUDIO CONTEXT (DO DŹWIĘKU ODLICZANIA) ---
+let audioCtx = null;
+
+// Inicjalizacja dźwięku. Wymaga akcji użytkownika (kliknięcia), żeby przeglądarka na to pozwoliła.
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
+// Funkcja generująca z kodu krótkie "tyknięcie".
+function playTick() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gainNode = audioCtx.createGain();
+  
+  osc.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+  
+  osc.type = 'sine'; // Rodzaj fali dźwiękowej
+  osc.frequency.setValueAtTime(800, audioCtx.currentTime); // Wysokość dźwięku
+  
+  gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); // Głośność (0.1 to 10%)
+  gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05); // Szybkie ściszenie
+  
+  osc.start(audioCtx.currentTime);
+  osc.stop(audioCtx.currentTime + 0.05);
+}
+// ---------------------------------------------
+
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
 
 function joinGame() {
+  initAudio(); // Odblokowanie dźwięku przy pierwszym kliknięciu
   const name = document.getElementById('player-name').value.trim();
   if (name) socket.emit('joinGame', { name });
 }
@@ -224,9 +277,24 @@ socket.on('state', s => {
       document.getElementById('liar-panel').style.display = 'none';
     }
 
-    document.getElementById('turn-name').textContent = s.currentPlayerName;
-    document.getElementById('turn-label').textContent = ' odpowiada...';
-    document.getElementById('answer-section').style.display = s.currentPlayerName === myName ? 'block' : 'none';
+    // SPRAWDZENIE CZYJA JEST KOLEJ - EDYCJA NAPISÓW
+    const isMyTurn = s.currentPlayerName === myName;
+    const turnNameEl = document.getElementById('turn-name');
+    const turnLabelEl = document.getElementById('turn-label');
+
+    if (isMyTurn) {
+      turnNameEl.textContent = ''; // Czyścimy imię
+      turnLabelEl.textContent = '👉 TWOJA KOLEJ 👈'; // Wstawiamy specjalny komunikat
+      turnLabelEl.style.color = 'var(--green)';
+      turnLabelEl.style.fontWeight = 'bold';
+    } else {
+      turnNameEl.textContent = s.currentPlayerName;
+      turnLabelEl.textContent = ' odpowiada...';
+      turnLabelEl.style.color = 'var(--muted)';
+      turnLabelEl.style.fontWeight = 'normal';
+    }
+
+    document.getElementById('answer-section').style.display = isMyTurn ? 'block' : 'none';
 
     renderAnswerSlots('revealed-answers', s.allAnswers, s.revealedAnswers, false);
     renderScoreboard('scoreboard', s.players);
@@ -315,9 +383,29 @@ socket.on('timerStart', ({ duration, phase, correct, message }) => {
   }
 
   let t = duration;
+  
+  // Pierwsze wykonanie od razu (przed ruszeniem interwału)
+  count.textContent = t + 's';
+  bar.style.width = '100%';
+
   timerInterval = setInterval(() => {
-    t--; count.textContent = t + 's';
+    t--; 
+    count.textContent = t + 's';
     bar.style.width = (t / duration * 100) + '%';
+    
+    // LOGIKA DŹWIĘKU ODLICZANIA DLA AKTYWNEGO GRACZA
+    // Sprawdzamy czy to panel wpisywania odpowiedzi i czy dany gracz ma go widocznego
+    if (phase === 'answer' && document.getElementById('answer-section').style.display === 'block') {
+        if (t <= 5 && t > 0) {
+            // Jak zostało 5s lub mniej, tyka podwójnie (szybciej)
+            playTick();
+            setTimeout(playTick, 500); 
+        } else if (t > 5) {
+            // Standardowe tykanie co sekundę
+            playTick();
+        }
+    }
+
     if (t <= 0) clearInterval(timerInterval);
   }, 1000);
 });
@@ -340,6 +428,11 @@ function submitAnswer() {
   if (input.value.trim()) {
     socket.emit('submitAnswer', { answer: input.value.trim() });
     input.value = '';
+    
+    // Ukrywamy panel i zmieniamy napis, żeby gracz wiedział że odpowiedź "poszła"
+    document.getElementById('answer-section').style.display = 'none';
+    document.getElementById('turn-label').textContent = 'Sprawdzanie odpowiedzi...';
+    document.getElementById('turn-label').style.color = 'var(--yellow)';
   }
 }
 </script>
