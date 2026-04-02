@@ -92,7 +92,6 @@
     box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(5px);
   }
 
-  /* NOWE - Pływający pasek globalnego odliczania */
   #global-transition-timer {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
     background: linear-gradient(135deg, var(--accent), #c21844);
@@ -105,7 +104,6 @@
     to { opacity: 1; transform: translate(-50%, 0); }
   }
 
-  /* Layout 2 kolumn dla wyników głosowania */
   .grid-2col { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
 
   @media(min-width: 1600px) {
@@ -233,8 +231,10 @@
 
 <div class="screen" id="screen-voting-results">
   <div class="card" style="max-width:1000px; margin:0 auto; width:100%;">
-    <h2 style="text-align:center; margin-bottom:30px; font-size: 2rem;">Wyniki Głosowania</h2>
+    <h2 style="text-align:center; margin-bottom:15px; font-size: 2rem;">Wyniki Głosowania</h2>
     
+    <div id="voting-verdict" style="margin-bottom: 25px; padding: 20px; border-radius: 12px; background: rgba(0,0,0,0.3); text-align: center; border: 2px solid transparent;"></div>
+
     <div class="grid-2col">
       <div style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 12px;">
         <h3 style="color:var(--blue); text-align:center; margin-bottom:15px;">Kto na kogo głosował?</h3>
@@ -253,7 +253,10 @@
 <div class="screen" id="screen-final">
   <div class="card" style="text-align:center; max-width: 800px; margin: 0 auto; width: 100%;">
     <h1 style="color:var(--yellow); font-size: 3rem;">Koniec Gry!</h1>
-    <div id="final-scoreboard" style="margin-top:40px; text-align:left; font-size: 1.4rem; display: flex; flex-direction: column; gap: 15px;"></div>
+    
+    <div id="final-verdict" style="margin: 25px 0;"></div>
+
+    <div id="final-scoreboard" style="margin-top:20px; text-align:left; font-size: 1.4rem; display: flex; flex-direction: column; gap: 15px;"></div>
   </div>
 </div>
 
@@ -348,7 +351,6 @@ socket.on('error', (msg) => {
     document.getElementById('join-error').textContent = msg;
 });
 
-// NASŁUCHIWANIE GLOBALNEGO ODLICZANIA
 socket.on('globalCountdown', ({ timeLeft }) => {
     const el = document.getElementById('global-transition-timer');
     if (timeLeft > 0) {
@@ -473,18 +475,33 @@ socket.on('state', s => {
 
   if (s.phase === 'votingResults') {
     showScreen('screen-voting-results');
+    
+    // LOGIKA RENDEROWANIA WERDYKTU (Czy złapano kłamczucha)
+    const latestVerdict = s.liarHistory[s.liarHistory.length - 1];
+    if (latestVerdict && latestVerdict.round === s.currentRound) {
+        const verdictEl = document.getElementById('voting-verdict');
+        if (latestVerdict.caught) {
+            verdictEl.innerHTML = `<h3 style="color:var(--green); margin:0; font-size:1.6rem;">🚨 Kłamczuch został złapany!</h3>
+                                   <p style="font-size:1.2rem; margin-top:5px;">Kłamczuchem był gracz: <strong>${latestVerdict.liarName}</strong>. Wybrany zostanie nowy kłamczuch.</p>`;
+            verdictEl.style.borderColor = 'var(--green)';
+        } else {
+            verdictEl.innerHTML = `<h3 style="color:var(--accent); margin:0; font-size:1.6rem;">💨 Nie wykryto kłamczucha!</h3>
+                                   <p style="font-size:1.2rem; margin-top:5px; color:var(--muted);">Kłamczuchem w tej rundzie pozostaje: <strong>${latestVerdict.liarName}</strong>.</p>`;
+            verdictEl.style.borderColor = 'var(--accent)';
+        }
+    }
+
     const list = document.getElementById('voting-results-list');
     const tallyList = document.getElementById('voting-tally-list');
     list.innerHTML = '';
     tallyList.innerHTML = '';
     myVote = null;
     
-    // Tworzenie "Tabeli Przestawnej" głosów
     const tally = {};
 
     if (s.votes) {
       Object.entries(s.votes).forEach(([voter, votedFor]) => {
-        tally[votedFor] = (tally[votedFor] || 0) + 1; // Zliczanie głosów
+        tally[votedFor] = (tally[votedFor] || 0) + 1; 
         
         const change = s.lastVotingChanges[voter] || 0;
         const color = change >= 0 ? 'var(--green)' : 'var(--accent)';
@@ -496,7 +513,6 @@ socket.on('state', s => {
       });
     }
 
-    // Renderowanie podsumowania głosów obok
     const sortedTally = Object.entries(tally).sort((a,b) => b[1] - a[1]);
     if (sortedTally.length > 0) {
         sortedTally.forEach(([name, count]) => {
@@ -517,6 +533,18 @@ socket.on('state', s => {
 
   if (s.phase === 'finalSummary') {
     showScreen('screen-final');
+    
+    // WERDYKT W FINALE
+    const latestVerdict = s.liarHistory[s.liarHistory.length - 1];
+    if (latestVerdict && latestVerdict.round === 11) {
+        const finalVerdictEl = document.getElementById('final-verdict');
+        if (latestVerdict.caught) {
+            finalVerdictEl.innerHTML = `<h3 style="color:var(--green); font-size: 1.8rem;">🚨 Kłamczuch (${latestVerdict.liarName}) został ZŁAPANY!</h3>`;
+        } else {
+            finalVerdictEl.innerHTML = `<h3 style="color:var(--accent); font-size: 1.8rem;">💨 Kłamczuch (${latestVerdict.liarName}) WYGRAŁ i wymknął się!</h3>`;
+        }
+    }
+
     renderScoreboard('final-scoreboard', s.players);
 
     if (currentPhase !== 'finalSummary') {
@@ -524,7 +552,7 @@ socket.on('state', s => {
             confetti({ particleCount: 200, spread: 160, origin: { y: 0.6 } });
         }
         sndFanfare.currentTime = 0;
-        sndFanfare.play().catch(e => console.log(e)); 
+        sndFanfare.play().catch(e => console.log("Błąd audio:", e)); 
     }
   }
   
@@ -560,15 +588,18 @@ socket.on('timerStart', ({ duration, phase, correct, message }) => {
     revMsg.style.color = correct ? 'var(--green)' : 'var(--accent)';
     document.getElementById('answer-section').style.display = 'none';
     
+    // ZMIANA: Twardy i jeszcze pewniejszy restryktor dla ucinania i grania audio (Tylko jedno odegranie na 3.5 sekundy)
     const now = Date.now();
-    if (now - lastSoundTime > 2000) {
+    if (now - lastSoundTime > 3500) {
         lastSoundTime = now;
         if (correct) {
+            sndCorrect.pause();
             sndCorrect.currentTime = 0;
-            sndCorrect.play().catch(e => console.log(e));
+            sndCorrect.play().catch(e => console.log("Błąd audio:", e));
         } else {
+            sndWrong.pause();
             sndWrong.currentTime = 0;
-            sndWrong.play().catch(e => console.log(e));
+            sndWrong.play().catch(e => console.log("Błąd audio:", e));
         }
     }
 

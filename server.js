@@ -43,12 +43,11 @@ let gameState = {
   isAnswerLocked: false
 };
 
-// NOWY SYSTEM: Globalne odliczanie między etapami
 let globalTransitionInterval = null;
 
 function clearTransitions() {
   if (globalTransitionInterval) clearInterval(globalTransitionInterval);
-  io.emit('globalCountdown', { timeLeft: 0 }); // 0 ukrywa pasek na ekranach graczy
+  io.emit('globalCountdown', { timeLeft: 0 });
 }
 
 function runTransition(seconds, callback) {
@@ -56,7 +55,7 @@ function runTransition(seconds, callback) {
   let t = seconds;
   io.emit('globalCountdown', { timeLeft: t });
   globalTransitionInterval = setInterval(() => {
-    if (gameState.isPaused) return; // Jeśli Admin spauzował, zegar czeka w miejscu
+    if (gameState.isPaused) return;
     t--;
     if (t > 0) {
       io.emit('globalCountdown', { timeLeft: t });
@@ -70,168 +69,91 @@ function runTransition(seconds, callback) {
 function defaultQuestions() {
   return [
     {
-      text: "Wymień popularne batony",
+      text: "Co robimy rano zaraz po przebudzeniu?",
       answers: [
-        { text: "Snickers", points: 1000 },
-        { text: "Twix", points: 900 },
-        { text: "Mars", points: 800 },
-        { text: "Kinder Bueno", points: 700 },
-        { text: "Bounty", points: 600 },
-        { text: "Lion", points: 500 },
-        { text: "Pawełek", points: 400 },
-        { text: "KitKat", points: 300 },
-        { text: "Milky Way", points: 200 },
-        { text: "3Bit", points: 100 },
+        { text: "Telefon", points: 1000 }, { text: "Kawa", points: 900 }, { text: "Toaleta", points: 800 },
+        { text: "Mycie zebow", points: 700 }, { text: "Prysznic", points: 600 }, { text: "Sniadanie", points: 500 },
+        { text: "Ubieranie sie", points: 400 }, { text: "Scielenie lozka", points: 300 }, { text: "Budzik", points: 200 }, { text: "Picie wody", points: 100 }
       ]
     },
     {
-      text: "Co ludzie często udają, że rozumieją, choć nie rozumieją?",
+      text: "Popularne polskie danie obiadowe",
       answers: [
-        { text: "Podatki", points: 1000 },
-        { text: "Politykę", points: 900 },
-        { text: "Kryptowaluty", points: 800 },
-        { text: "Sztukę współczesną", points: 700 },
-        { text: "Instrukcję leku", points: 600 },
-        { text: "Umowę kredytu", points: 500 },
-        { text: "Memy", points: 400 },
-        { text: "Excela", points: 300 },
-        { text: "AI", points: 200 },
-        { text: "Spalony", points: 100 },
+        { text: "Schabowy", points: 1000 }, { text: "Pierogi", points: 900 }, { text: "Rosol", points: 800 },
+        { text: "Zupa pomidorowa", points: 700 }, { text: "Mielony", points: 600 }, { text: "Bigos", points: 500 },
+        { text: "Golabki", points: 400 }, { text: "Ryba", points: 300 }, { text: "Kopytka", points: 200 }, { text: "Placki ziemniaczane", points: 100 }
       ]
     },
     {
-      text: "Państwo, którego nazwa kończy się na \"NIA\"",
+      text: "Co kojarzy sie z wakacjami nad morzem?",
       answers: [
-        { text: "Hiszpania", points: 1000 },
-        { text: "Dania", points: 900 },
-        { text: "Rumunia", points: 800 },
-        { text: "Albania", points: 700 },
-        { text: "Estonia", points: 600 },
-        { text: "Kenia", points: 500 },
-        { text: "Słowenia", points: 400 },
-        { text: "Armenia", points: 300 },
-        { text: "Jordania", points: 200 },
-        { text: "Tanzania", points: 100 },
+        { text: "Piasek", points: 1000 }, { text: "Parawan", points: 900 }, { text: "Slonce", points: 800 },
+        { text: "Ryba", points: 700 }, { text: "Lody", points: 600 }, { text: "Mewy", points: 500 },
+        { text: "Gofry", points: 400 }, { text: "Muszelki", points: 300 }, { text: "Statek", points: 200 }, { text: "Latarnia", points: 100 }
       ]
     },
     {
-      text: "Do jakiego kraju Polacy jeżdżą/latają na wakacje?",
+      text: "Zawod, w ktorym trzeba nosic mundur",
       answers: [
-        { text: "Grecja", points: 1000 },
-        { text: "Hiszpania", points: 900 },
-        { text: "Włochy", points: 800 },
-        { text: "Egipt", points: 700 },
-        { text: "Turcja", points: 600 },
-        { text: "Chorwacja", points: 500 },
-        { text: "Bułgaria", points: 400 },
-        { text: "Portugalia", points: 300 },
-        { text: "Albania", points: 200 },
-        { text: "Tunezja", points: 100 },
+        { text: "Policjant", points: 1000 }, { text: "Strazak", points: 900 }, { text: "Zolnierz", points: 800 },
+        { text: "Straznik graniczny", points: 700 }, { text: "Pilot", points: 600 }, { text: "Pielegniarka", points: 500 },
+        { text: "Kucharz", points: 400 }, { text: "Konduktor", points: 300 }, { text: "Marynarz", points: 200 }, { text: "Listonosz", points: 100 }
       ]
     },
     {
-      text: "Co ludzie najczęściej mają przy łóżku?",
+      text: "Co robimy, gdy stoimy w dlugim korku?",
       answers: [
-        { text: "Telefon", points: 1000 },
-        { text: "Lampkę", points: 900 },
-        { text: "Ładowarkę", points: 800 },
-        { text: "Prezerwatywę", points: 700 },
-        { text: "Książkę", points: 600 },
-        { text: "Chusteczki", points: 500 },
-        { text: "Pilot", points: 400 },
-        { text: "Zegarek", points: 300 },
-        { text: "Szklankę", points: 200 },
-        { text: "Okulary", points: 100 },
+        { text: "Sluchanie muzyki", points: 1000 }, { text: "Patrzenie w telefon", points: 900 }, { text: "Spiewanie", points: 800 },
+        { text: "Dlubanie w nosie", points: 700 }, { text: "Rozmawianie", points: 600 }, { text: "Przeklinanie", points: 500 },
+        { text: "Rozgladanie sie", points: 400 }, { text: "Jedzenie", points: 300 }, { text: "Myslenie", points: 200 }, { text: "GPS", points: 100 }
       ]
     },
     {
-      text: "Popularny superbohater",
+      text: "Co mozna znalezc w damskiej torebce?",
       answers: [
-        { text: "Batman", points: 1000 },
-        { text: "Spider-Man", points: 900 },
-        { text: "Superman", points: 800 },
-        { text: "Hulk", points: 700 },
-        { text: "Iron Man", points: 600 },
-        { text: "Thor", points: 500 },
-        { text: "Kapitan Ameryka", points: 400 },
-        { text: "Wonder Woman", points: 300 },
-        { text: "Wolverine", points: 200 },
-        { text: "Flash", points: 100 },
+        { text: "Telefon", points: 1000 }, { text: "Portfel", points: 900 }, { text: "Klucze", points: 800 },
+        { text: "Chusteczki", points: 700 }, { text: "Szminka", points: 600 }, { text: "Lusterko", points: 500 },
+        { text: "Perfumy", points: 400 }, { text: "Krem do rak", points: 300 }, { text: "Dlugopis", points: 200 }, { text: "Tabletki", points: 100 }
       ]
     },
     {
-      text: "Wymień sport, w którym rywalizujesz bez bezpośredniego kontaktu fizycznego",
+      text: "Urzadzenie domowe, ktore psuje sie najczesciej",
       answers: [
-        { text: "Tenis", points: 1000 },
-        { text: "Tenis stołowy", points: 900 },
-        { text: "Siatkówka", points: 800 },
-        { text: "Badminton", points: 700 },
-        { text: "Szachy", points: 600 },
-        { text: "Squash", points: 500 },
-        { text: "Bilard", points: 400 },
-        { text: "Golf", points: 300 },
-        { text: "Dart", points: 200 },
-        { text: "Kręgle", points: 100 },
+        { text: "Pralka", points: 1000 }, { text: "Lodowka", points: 900 }, { text: "Czajnik", points: 800 },
+        { text: "Telewizor", points: 700 }, { text: "Zmywarka", points: 600 }, { text: "Odkurzacz", points: 500 },
+        { text: "Zarowka", points: 400 }, { text: "Kran", points: 300 }, { text: "Pilot", points: 200 }, { text: "Router", points: 100 }
       ]
     },
     {
-      text: "Popularne polskie nazwisko",
+      text: "Gdzie musimy zachowac absolutna cisze?",
       answers: [
-        { text: "Kowalski", points: 1000 },
-        { text: "Nowak", points: 900 },
-        { text: "Lewandowski", points: 800 },
-        { text: "Wiśniewski", points: 700 },
-        { text: "Kowalczyk", points: 600 },
-        { text: "Kamiński", points: 500 },
-        { text: "Wójcik", points: 400 },
-        { text: "Zieliński", points: 300 },
-        { text: "Szymański", points: 200 },
-        { text: "Woźniak", points: 100 },
+        { text: "Biblioteka", points: 1000 }, { text: "Kosciol", points: 900 }, { text: "Szpital", points: 800 },
+        { text: "Kino", points: 700 }, { text: "Teatr", points: 600 }, { text: "Muzeum", points: 500 },
+        { text: "Pogrzeb", points: 400 }, { text: "Egzamin", points: 300 }, { text: "Sad", points: 200 }, { text: "Sypialnia", points: 100 }
       ]
     },
     {
-      text: "Co można powiedzieć podczas gry w karty?",
+      text: "Co kupujemy na stacji benzynowej poza paliwem?",
       answers: [
-        { text: "Wchodzę", points: 1000 },
-        { text: "Nie kończ jeszcze", points: 900 },
-        { text: "Tasuj porządnie", points: 800 },
-        { text: "Nie patrz", points: 700 },
-        { text: "Odsłaniasz czy czekasz?", points: 600 },
-        { text: "Masz niezły układ", points: 500 },
-        { text: "Teraz ja", points: 400 },
-        { text: "Spokojnie, po kolei", points: 300 },
-        { text: "Ale mnie przebiłeś", points: 200 },
-        { text: "Dzisiaj wyjątkowo ci idzie", points: 100 },
+        { text: "Kawa", points: 1000 }, { text: "Hot-dog", points: 900 }, { text: "Plyn do spryskiwaczy", points: 800 },
+        { text: "Papierosy", points: 700 }, { text: "Napoje", points: 600 }, { text: "Chipsy", points: 500 },
+        { text: "Alkohol", points: 400 }, { text: "Gazeta", points: 300 }, { text: "Olej", points: 200 }, { text: "Zapalniczka", points: 100 }
       ]
     },
     {
-      text: "Co golimy?",
+      text: "Przedmiot, ktory czesto gubimy w domu",
       answers: [
-        { text: "Jaja", points: 1000 },
-        { text: "Broda", points: 900 },
-        { text: "Nogi", points: 800 },
-        { text: "Pachy", points: 700 },
-        { text: "Wąsy", points: 600 },
-        { text: "Cipka", points: 500 },
-        { text: "Klatka piersiowa", points: 400 },
-        { text: "Dupa", points: 300 },
-        { text: "Ręce", points: 200 },
-        { text: "Brwi", points: 100 },
+        { text: "Klucze", points: 1000 }, { text: "Telefon", points: 900 }, { text: "Pilot", points: 800 },
+        { text: "Portfel", points: 700 }, { text: "Skarpetki", points: 600 }, { text: "Okulary", points: 500 },
+        { text: "Sluchawki", points: 400 }, { text: "Ladowarka", points: 300 }, { text: "Dlugopis", points: 200 }, { text: "Gumka do wlosow", points: 100 }
       ]
     },
     {
-      text: "Słowo, którego nazwa kończy się na \"owiec\"",
+      text: "Co robimy, gdy nie mozemy zasnac w nocy?",
       answers: [
-        { text: "Naukowiec", points: 1000 },
-        { text: "Fachowiec", points: 900 },
-        { text: "Biurowiec", points: 800 },
-        { text: "Sportowiec", points: 700 },
-        { text: "Śmigłowiec", points: 600 },
-        { text: "Zawodowiec", points: 500 },
-        { text: "Pokrowiec", points: 400 },
-        { text: "Szybowiec", points: 300 },
-        { text: "Drogowiec", points: 200 },
-        { text: "Związkowiec", points: 100 },
+        { text: "Liczenie owiec", points: 1000 }, { text: "Czytanie", points: 900 }, { text: "Telefon", points: 800 },
+        { text: "Myslenie", points: 700 }, { text: "Picie melisy", points: 600 }, { text: "Muzyka", points: 500 },
+        { text: "Sprzatanie", points: 400 }, { text: "Jedzenie", points: 300 }, { text: "Telewizja", points: 200 }, { text: "Przewracanie sie", points: 100 }
       ]
     }
   ];
@@ -243,16 +165,9 @@ function testQuestions() {
     q.push({
       text: `[TEST] Pytanie testowe ${i}`,
       answers: [
-        { text: "A", points: 1000 },
-        { text: "B", points: 900 },
-        { text: "C", points: 800 },
-        { text: "D", points: 700 },
-        { text: "E", points: 600 },
-        { text: "F", points: 500 },
-        { text: "G", points: 400 },
-        { text: "H", points: 300 },
-        { text: "I", points: 200 },
-        { text: "J", points: 100 },
+        { text: "A", points: 1000 }, { text: "B", points: 900 }, { text: "C", points: 800 },
+        { text: "D", points: 700 }, { text: "E", points: 600 }, { text: "F", points: 500 },
+        { text: "G", points: 400 }, { text: "H", points: 300 }, { text: "I", points: 200 }, { text: "J", points: 100 },
       ]
     });
   }
@@ -343,7 +258,7 @@ function broadcastState() {
 }
 
 function startTurnTimer() {
-  clearTransitions(); // Upewniamy się, że licznik przejścia znika jak startuje tura
+  clearTransitions();
   clearTimeout(gameState.turnTimer);
   gameState.isAnswerLocked = false;
   if (gameState.isPaused) return;
@@ -370,7 +285,7 @@ function showNoAnswer(playerName) {
       return;
     }
   }
-  io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Czas minął! Brak odpowiedzi.' });
+  io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Czas minal! Brak odpowiedzi.' });
   gameState.revealTimer = setTimeout(() => { nextTurn(); }, 4000);
 }
 
@@ -389,8 +304,10 @@ function nextTurn() {
 function startRoundSummary() {
   gameState.phase = 'roundSummary';
   broadcastState();
-  // Używamy nowego systemu do odliczania
-  runTransition(3, () => { startRevealSequence(); });
+  clearTransitions(); // ZMIANA: Usunięto widoczne odliczanie!
+  
+  // Zwykłe przeczekanie 3 sekund "w ukryciu" przed odsłonięciem
+  setTimeout(() => { if (!gameState.isPaused) startRevealSequence(); }, 3000);
 }
 
 function startRevealSequence() {
@@ -409,7 +326,7 @@ function startRevealSequence() {
       step++;
       setTimeout(revealNext, 2000);
     } else {
-      // Gdy skończy się pokazywanie odpowiedzi, pokazujemy licznik przejścia
+      // Gdy skończą odkrywać się odpowiedzi, to odliczamy do następnej fazy
       runTransition(5, () => { postRoundRouting(); });
     }
   }
@@ -485,8 +402,6 @@ function resolveVoting() {
   }
 
   broadcastState();
-  
-  // Odliczanie (widoczne dla wszystkich) do startu kolejnej rundy
   runTransition(12, () => {
     if (gameState.phase === 'votingResults') startNextRound();
   });
@@ -501,7 +416,7 @@ function pickNewLiar(excludeName, pool) {
 }
 
 function startNextRound() {
-  clearTransitions(); // Blokada, żeby licznik zniknął przy przejściu ręcznym
+  clearTransitions();
   if (gameState.currentRound >= gameState.totalRounds) return;
   gameState.currentRound++;
   gameState.lastVotingChanges = {};
@@ -636,15 +551,15 @@ io.on('connection', (socket) => {
     if (!normName) return;
     if (gameState.players[normName]) {
       if (gameState.players[normName].connected) {
-        socket.emit('error', 'Gracz o tym imieniu jest już w grze.');
+        socket.emit('error', 'Gracz o tym imieniu jest juz w grze.');
         return;
       }
       gameState.players[normName].socketId = socket.id;
       gameState.players[normName].connected = true;
       broadcastState();
     } else {
-      if (gameState.phase !== 'lobby') { socket.emit('error', 'Gra już trwa.'); return; }
-      if (Object.keys(gameState.players).length >= 7) { socket.emit('error', 'Maksymalna liczba graczy osiągnięta.'); return; }
+      if (gameState.phase !== 'lobby') { socket.emit('error', 'Gra juz trwa.'); return; }
+      if (Object.keys(gameState.players).length >= 7) { socket.emit('error', 'Maksymalna liczba graczy osiagnieta.'); return; }
       gameState.players[normName] = { name: normName, socketId: socket.id, score: 0, isLiar: false, connected: true, wrongAnswers: 0 };
       broadcastState();
     }
@@ -659,7 +574,7 @@ io.on('connection', (socket) => {
 
   socket.on('stopGame', () => {
     if (socket.id !== gameState.adminSocketId) return;
-    clearTransitions(); // Czyszczenie przy ręcznym resecie
+    clearTransitions();
     gameState.phase = 'lobby';
     gameState.currentRound = 0;
     gameState.isPaused = false;
@@ -680,7 +595,7 @@ io.on('connection', (socket) => {
 
   socket.on('startNextRound', () => {
     if (socket.id !== gameState.adminSocketId) return;
-    startNextRound(); // Wywoła wewnętrznie clearTransitions()
+    startNextRound();
   });
 
   socket.on('submitAnswer', ({ answer }) => {
@@ -700,12 +615,12 @@ io.on('connection', (socket) => {
       const ans = rd.answers[idx];
       player.score += ans.points;
       rd.revealedAnswers.push({ index: idx, text: ans.text, points: ans.points, byName: player.name });
-      io.emit('timerStart', { duration: 4, phase: 'reveal', correct: true, message: `Trafiłeś! +${ans.points} pkt` });
+      io.emit('timerStart', { duration: 4, phase: 'reveal', correct: true, message: `Trafiles! +${ans.points} pkt` });
       gameState.revealTimer = setTimeout(() => nextTurn(), 4000);
     } else {
       gameState.lastWrongAnswer = { playerName: player.name, text: answer };
       rd.wrongAnswersList.push({ text: answer, byName: player.name });
-      io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Zła odpowiedź!' });
+      io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Zla odpowiedz!' });
       broadcastState();
       gameState.revealTimer = setTimeout(() => {
         if (gameState.currentRound === 11) {
@@ -731,7 +646,7 @@ io.on('connection', (socket) => {
       const wIdx = rd.wrongAnswersList.findIndex(w => w.text === gameState.lastWrongAnswer.text && w.byName === playerName);
       if (wIdx !== -1) rd.wrongAnswersList.splice(wIdx, 1);
 
-      io.emit('timerStart', { duration: 3, phase: 'reveal', correct: true, message: `Korekta Admina: Trafiłeś! +${ans.points} pkt` });
+      io.emit('timerStart', { duration: 3, phase: 'reveal', correct: true, message: `Korekta Admina: Trafiles! +${ans.points} pkt` });
       gameState.lastWrongAnswer = null;
       gameState.revealTimer = setTimeout(() => nextTurn(), 3000);
     }
@@ -762,4 +677,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Serwer działa na porcie ${PORT}`));
+server.listen(PORT, () => console.log(`Serwer dziala na porcie ${PORT}`));
