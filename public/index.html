@@ -47,12 +47,14 @@
   .player-chip.active { border-color:var(--yellow); box-shadow:0 0 10px rgba(255,215,0,0.3); transform:scale(1.05); }
   .player-chip.offline { opacity:0.5; text-decoration:line-through; }
   
+  /* ZMODYFIKOWANE STYLE DLA KAFELKÓW ODPOWIEDZI (Zmniejszone o ~40-50%) */
   .answer-tile {
     background:linear-gradient(90deg, #16213e, rgba(22,33,62,0.4)); border-left:4px solid var(--blue);
-    border-radius:8px; padding:12px 18px; margin:8px 0; display:flex; justify-content:space-between; align-items:center;
+    border-radius:6px; padding:6px 10px; margin:4px 0; display:flex; justify-content:space-between; align-items:center;
+    font-size: 0.9rem;
   }
   .answer-tile.hidden { opacity: 0.3; border-left-color: #333; }
-  .answer-tile .pts { color:var(--yellow); font-weight:800; font-size:1.2rem; }
+  .answer-tile .pts { color:var(--yellow); font-weight:800; font-size:1rem; }
   
   .timer-bar-wrap { background:rgba(0,0,0,0.5); border-radius:8px; height:12px; overflow:hidden; margin:10px 0; border:1px solid #333; }
   .timer-bar { height:100%; background:linear-gradient(90deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%); transition:width 1s linear; }
@@ -254,7 +256,6 @@ socket.on('state', s => {
   if (s.myName) myName = s.myName;
   document.getElementById('pause-overlay').style.display = s.isPaused ? 'flex' : 'none';
 
-  // FIX BŁĘDU Z DŹWIĘKIEM (zatrzymanie zegara przy powrocie do lobby)
   if (s.phase === 'lobby') {
     clearInterval(timerInterval);
     showScreen('screen-lobby');
@@ -297,7 +298,6 @@ socket.on('state', s => {
 
     document.getElementById('answer-section').style.display = isMyTurn ? 'block' : 'none';
 
-    // RENDEROWANIE GŁÓWNEJ TABLICY Z ODPOWIEDZIAMI (zawsze 10 miejsc i znaki zapytania)
     const ansContainer = document.getElementById('revealed-answers');
     ansContainer.innerHTML = '';
     const count = s.answerCount || 10;
@@ -315,7 +315,6 @@ socket.on('state', s => {
       ansContainer.appendChild(tile);
     }
 
-    // RENDEROWANIE BŁĘDNYCH ODPOWIEDZI
     const wrongContainer = document.getElementById('wrong-answers-list');
     wrongContainer.innerHTML = '';
     if (s.wrongAnswersList && s.wrongAnswersList.length > 0) {
@@ -333,7 +332,6 @@ socket.on('state', s => {
   if (s.phase === 'roundSummary') {
     showScreen('screen-round-summary');
     document.getElementById('rs-subtitle').textContent = s.isVotingNext ? "PRZYGOTUJ SIĘ NA GŁOSOWANIE" : "PRZYGOTUJ SIĘ NA KOLEJNĄ RUNDĘ";
-    // Podsumowanie - używamy starej funkcji, żeby ładnie wylistować wszystko
     renderAnswerSlots('rs-all-answers', s.allAnswers, s.revealedAnswers, false);
   }
 
@@ -380,7 +378,6 @@ socket.on('state', s => {
   }
 });
 
-// Ta funkcja jest teraz używana tylko przy ekranie podsumowania rundy
 function renderAnswerSlots(containerId, allAnswers, revealed, showAllText) {
   const container = document.getElementById(containerId);
   container.innerHTML = '';

@@ -39,7 +39,8 @@ let gameState = {
   r11Turns: 0,
   speechPlayerName: null,
   isPaused: false,
-  lastVotingChanges: {}
+  lastVotingChanges: {},
+  isAnswerLocked: false // DODANO: Flaga blokująca podwójne wysyłanie odpowiedzi i błędy z timerem
 };
 
 function defaultQuestions() {
@@ -280,8 +281,8 @@ function broadcastState() {
   if (gameState.roundData) {
     base.questionText = gameState.roundData.questionText;
     base.revealedAnswers = gameState.roundData.revealedAnswers;
-    base.wrongAnswersList = gameState.roundData.wrongAnswersList; // DODANO
-    base.answerCount = gameState.roundData.answers.length;        // DODANO
+    base.wrongAnswersList = gameState.roundData.wrongAnswersList;
+    base.answerCount = gameState.roundData.answers.length;
     base.roundOrder = gameState.roundOrder;
     base.currentTurnIndex = gameState.currentTurnIndex;
     base.currentPlayerName = gameState.roundOrder[gameState.currentTurnIndex] || null;
@@ -319,6 +320,7 @@ function broadcastState() {
 
 function startTurnTimer() {
   clearTimeout(gameState.turnTimer);
+  gameState.isAnswerLocked = false; // Zdejmujemy blokadę na początku nowej tury
   if (gameState.isPaused) return;
 
   const currentName = gameState.roundOrder[gameState.currentTurnIndex];
@@ -334,6 +336,8 @@ function startTurnTimer() {
 
 function showNoAnswer(playerName) {
   clearTimeout(gameState.turnTimer);
+  gameState.isAnswerLocked = true; // Zakładamy blokadę, żeby opóźniona odpowiedź nie odpaliła drugiego zegara
+  
   if (gameState.currentRound === 11 && gameState.players[playerName]) {
     gameState.players[playerName].wrongAnswers++;
     if (gameState.players[playerName].wrongAnswers >= 2) {
@@ -491,7 +495,6 @@ function startNextRound() {
     .map(p => p.name);
 
   gameState.currentTurnIndex = 0;
-  // DODANO: wrongAnswersList do struktury rundy
   gameState.roundData = { questionText: question.text, answers: question.answers, revealedAnswers: [], wrongAnswersList: [] };
   gameState.phase = 'round';
   broadcastState();
@@ -513,7 +516,6 @@ function setupRound11() {
   
   gameState.roundOrder = [starter, second, starter, second, starter, second]; 
   gameState.currentTurnIndex = 0;
-  // DODANO: wrongAnswersList do struktury rundy
   gameState.roundData = { questionText: question.text, answers: question.answers, revealedAnswers: [], wrongAnswersList: [] };
   gameState.phase = 'round';
   broadcastState();
@@ -646,10 +648,14 @@ io.on('connection', (socket) => {
   });
 
   socket.on('submitAnswer', ({ answer }) => {
-    if (gameState.phase !== 'round' || gameState.isPaused) return;
+    // Jeśli faza to nie runda, lub gra jest zapauzowana, ALBO odpaliła się blokada isAnswerLocked - ignorujemy.
+    if (gameState.phase !== 'round' || gameState.isPaused || gameState.isAnswerLocked) return;
+    
     const currentName = gameState.roundOrder[gameState.currentTurnIndex];
     const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
     if (!player || player.name !== currentName) return;
+    
+    gameState.isAnswerLocked = true; // ZAKŁADAMY BLOKADĘ (rozwiązuje problem z dublowaniem)
     clearTimeout(gameState.turnTimer);
 
     const rd = gameState.roundData;
@@ -663,7 +669,7 @@ io.on('connection', (socket) => {
       gameState.revealTimer = setTimeout(() => nextTurn(), 4000);
     } else {
       gameState.lastWrongAnswer = { playerName: player.name, text: answer };
-      rd.wrongAnswersList.push({ text: answer, byName: player.name }); // DODANO: Zapisanie błędnej odpowiedzi
+      rd.wrongAnswersList.push({ text: answer, byName: player.name });
       io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Zła odpowiedź!' });
       broadcastState();
       gameState.revealTimer = setTimeout(() => {
@@ -687,7 +693,6 @@ io.on('connection', (socket) => {
       player.score += ans.points;
       rd.revealedAnswers.push({ index: answerIndex, text: ans.text, points: ans.points, byName: playerName });
       
-      // DODANO: Usunięcie błędnej odpowiedzi z listy po interwencji admina
       const wIdx = rd.wrongAnswersList.findIndex(w => w.text === gameState.lastWrongAnswer.text && w.byName === playerName);
       if (wIdx !== -1) rd.wrongAnswersList.splice(wIdx, 1);
 
