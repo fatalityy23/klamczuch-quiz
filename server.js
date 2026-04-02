@@ -43,6 +43,30 @@ let gameState = {
   isAnswerLocked: false
 };
 
+// NOWY SYSTEM: Globalne odliczanie między etapami
+let globalTransitionInterval = null;
+
+function clearTransitions() {
+  if (globalTransitionInterval) clearInterval(globalTransitionInterval);
+  io.emit('globalCountdown', { timeLeft: 0 }); // 0 ukrywa pasek na ekranach graczy
+}
+
+function runTransition(seconds, callback) {
+  clearTransitions();
+  let t = seconds;
+  io.emit('globalCountdown', { timeLeft: t });
+  globalTransitionInterval = setInterval(() => {
+    if (gameState.isPaused) return; // Jeśli Admin spauzował, zegar czeka w miejscu
+    t--;
+    if (t > 0) {
+      io.emit('globalCountdown', { timeLeft: t });
+    } else {
+      clearTransitions();
+      callback();
+    }
+  }, 1000);
+}
+
 function defaultQuestions() {
   return [
     {
@@ -319,6 +343,7 @@ function broadcastState() {
 }
 
 function startTurnTimer() {
+  clearTransitions(); // Upewniamy się, że licznik przejścia znika jak startuje tura
   clearTimeout(gameState.turnTimer);
   gameState.isAnswerLocked = false;
   if (gameState.isPaused) return;
@@ -364,7 +389,8 @@ function nextTurn() {
 function startRoundSummary() {
   gameState.phase = 'roundSummary';
   broadcastState();
-  setTimeout(() => { if (!gameState.isPaused) startRevealSequence(); }, 3000);
+  // Używamy nowego systemu do odliczania
+  runTransition(3, () => { startRevealSequence(); });
 }
 
 function startRevealSequence() {
@@ -383,7 +409,8 @@ function startRevealSequence() {
       step++;
       setTimeout(revealNext, 2000);
     } else {
-      setTimeout(() => { postRoundRouting(); }, 4000);
+      // Gdy skończy się pokazywanie odpowiedzi, pokazujemy licznik przejścia
+      runTransition(5, () => { postRoundRouting(); });
     }
   }
   revealNext();
@@ -414,9 +441,9 @@ function startVoting() {
 }
 
 function resolveVoting() {
-  if (gameState.phase !== 'voting') return; // Zabezpieczenie przed podwójnym wywołaniem
+  if (gameState.phase !== 'voting') return;
   clearInterval(gameState.votingInterval);
-  gameState.phase = 'votingResults'; // Zmieniamy fazę NATYCHMIAST
+  gameState.phase = 'votingResults';
 
   const tally = {};
   Object.values(gameState.votes).forEach(vName => { tally[vName] = (tally[vName] || 0) + 1; });
@@ -459,9 +486,10 @@ function resolveVoting() {
 
   broadcastState();
   
-  setTimeout(() => {
-    if (gameState.phase === 'votingResults' && !gameState.isPaused) startNextRound();
-  }, 12000);
+  // Odliczanie (widoczne dla wszystkich) do startu kolejnej rundy
+  runTransition(12, () => {
+    if (gameState.phase === 'votingResults') startNextRound();
+  });
 }
 
 function pickNewLiar(excludeName, pool) {
@@ -473,6 +501,7 @@ function pickNewLiar(excludeName, pool) {
 }
 
 function startNextRound() {
+  clearTransitions(); // Blokada, żeby licznik zniknął przy przejściu ręcznym
   if (gameState.currentRound >= gameState.totalRounds) return;
   gameState.currentRound++;
   gameState.lastVotingChanges = {};
@@ -572,7 +601,7 @@ function startFinalVoting() {
 }
 
 function resolveFinalVoting() {
-  if (gameState.phase !== 'finalVoting') return; // Blokada podwójnego wywołania
+  if (gameState.phase !== 'finalVoting') return;
   clearInterval(gameState.votingInterval);
   gameState.phase = 'finalSummary';
   
@@ -630,6 +659,7 @@ io.on('connection', (socket) => {
 
   socket.on('stopGame', () => {
     if (socket.id !== gameState.adminSocketId) return;
+    clearTransitions(); // Czyszczenie przy ręcznym resecie
     gameState.phase = 'lobby';
     gameState.currentRound = 0;
     gameState.isPaused = false;
@@ -650,7 +680,7 @@ io.on('connection', (socket) => {
 
   socket.on('startNextRound', () => {
     if (socket.id !== gameState.adminSocketId) return;
-    startNextRound();
+    startNextRound(); // Wywoła wewnętrznie clearTransitions()
   });
 
   socket.on('submitAnswer', ({ answer }) => {
@@ -715,7 +745,6 @@ io.on('connection', (socket) => {
     gameState.votes[player.name] = votedName;
     broadcastState();
 
-    // Sprawdzamy czy wszyscy aktualnie PODŁĄCZENI gracze oddali głos
     const expectedVotes = Object.values(gameState.players).filter(p => p.connected).length;
     const currentVotes = Object.keys(gameState.votes).length;
 

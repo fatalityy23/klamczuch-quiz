@@ -85,6 +85,29 @@
     display:none; flex-direction:column; justify-content:center; align-items:center; z-index:9999;
   }
 
+  #global-audio-controls {
+    position: fixed; top: 15px; right: 15px; z-index: 1000;
+    background: rgba(22, 33, 62, 0.9); border: 1px solid var(--blue);
+    padding: 8px 12px; border-radius: 20px; display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(5px);
+  }
+
+  /* NOWE - Pływający pasek globalnego odliczania */
+  #global-transition-timer {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: linear-gradient(135deg, var(--accent), #c21844);
+    color: #fff; padding: 12px 30px; border-radius: 30px;
+    font-size: 1.3rem; font-weight: 800; box-shadow: 0 4px 15px rgba(255,42,95,0.5);
+    z-index: 1000; display: none; animation: popIn 0.3s ease-out;
+  }
+  @keyframes popIn {
+    from { opacity: 0; transform: translate(-50%, 20px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+
+  /* Layout 2 kolumn dla wyników głosowania */
+  .grid-2col { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+
   @media(min-width: 1600px) {
     html { font-size: 20px; }
     .screen { max-width: 1500px; gap: 30px; }
@@ -101,9 +124,18 @@
 </head>
 <body>
 
+<div id="global-audio-controls">
+  <span id="mute-btn" style="cursor:pointer; font-size:1.2rem;" onclick="toggleMute()">🔊</span>
+  <input type="range" id="vol-slider" min="0" max="1" step="0.05" oninput="changeVolume(this.value)" style="width:80px; cursor:pointer;">
+</div>
+
 <div id="pause-overlay">
   <h1 style="font-size:5rem;">PAUZA</h1>
   <p style="color:var(--yellow); font-size:1.5rem;">Czekaj na wznowienie przez Host'a...</p>
+</div>
+
+<div id="global-transition-timer">
+  Następny etap za: <span id="gt-time" style="color:var(--yellow);"></span>s
 </div>
 
 <div class="screen active" id="screen-join">
@@ -200,9 +232,21 @@
 </div>
 
 <div class="screen" id="screen-voting-results">
-  <div class="card" style="max-width:800px; margin:0 auto; width:100%;">
+  <div class="card" style="max-width:1000px; margin:0 auto; width:100%;">
     <h2 style="text-align:center; margin-bottom:30px; font-size: 2rem;">Wyniki Głosowania</h2>
-    <div id="voting-results-list" style="font-size: 1.2rem; display: flex; flex-direction: column; gap: 10px;"></div>
+    
+    <div class="grid-2col">
+      <div style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 12px;">
+        <h3 style="color:var(--blue); text-align:center; margin-bottom:15px;">Kto na kogo głosował?</h3>
+        <div id="voting-results-list" style="font-size: 1.1rem; display: flex; flex-direction: column; gap: 8px;"></div>
+      </div>
+      
+      <div style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 12px; border: 1px solid var(--accent);">
+        <h3 style="color:var(--yellow); text-align:center; margin-bottom:15px;">Podsumowanie głosów</h3>
+        <div id="voting-tally-list" style="font-size: 1.2rem; display: flex; flex-direction: column; gap: 10px;"></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -218,36 +262,70 @@ const socket = io();
 let myName = '';
 let myVote = null;
 let timerInterval = null;
-let currentPhase = ''; // Zmienna śledząca fazę, żeby nie odpalać konfetti wielokrotnie
+let currentPhase = ''; 
+let lastSoundTime = 0; 
 
-// --- KONFIGURACJA DŹWIĘKÓW MP3 ---
+let isMuted = localStorage.getItem('kq_muted') === 'true';
+let globalVolume = localStorage.getItem('kq_volume') ? parseFloat(localStorage.getItem('kq_volume')) : 0.5;
+
 const sndCorrect = new Audio('/sounds/correct.mp3');
 const sndWrong = new Audio('/sounds/wrong.mp3');
 const sndFanfare = new Audio('/sounds/fanfare.mp3');
 
-// Tykanie z syntezatora (zostawiamy dla klimatu presji czasu)
+function applyAudioSettings() {
+    const vol = isMuted ? 0 : globalVolume;
+    sndCorrect.volume = vol;
+    sndWrong.volume = vol;
+    sndFanfare.volume = vol;
+    
+    document.getElementById('mute-btn').textContent = isMuted || vol === 0 ? '🔇' : '🔊';
+    document.getElementById('vol-slider').value = globalVolume;
+}
+
+function toggleMute() {
+    initAudio(); 
+    isMuted = !isMuted;
+    localStorage.setItem('kq_muted', isMuted);
+    applyAudioSettings();
+}
+
+function changeVolume(val) {
+    initAudio();
+    globalVolume = parseFloat(val);
+    if (globalVolume > 0 && isMuted) {
+        isMuted = false;
+        localStorage.setItem('kq_muted', false);
+    }
+    localStorage.setItem('kq_volume', globalVolume);
+    applyAudioSettings();
+}
+
+window.addEventListener('DOMContentLoaded', applyAudioSettings);
+
 let audioCtx = null;
 function initAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') audioCtx.resume();
 }
+
 function playTick() {
-  if (!audioCtx) return;
+  if (!audioCtx || isMuted || globalVolume === 0) return;
   const osc = audioCtx.createOscillator();
   const gainNode = audioCtx.createGain();
   osc.connect(gainNode); gainNode.connect(audioCtx.destination);
   osc.type = 'sine'; osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-  gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+  
+  const tickVol = 0.1 * globalVolume; 
+  gainNode.gain.setValueAtTime(tickVol, audioCtx.currentTime);
   gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+  
   osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.05);
 }
 
-// LOGIKA AUTO-RECONNECT
 window.onload = () => {
   const savedName = localStorage.getItem('klamczuch_name');
   if (savedName) {
       document.getElementById('player-name').value = savedName;
-      // Krótkie opóźnienie, żeby upewnić się, że socket zdążył się połączyć
       setTimeout(() => joinGame(), 500); 
   }
 };
@@ -261,14 +339,24 @@ function joinGame() {
   initAudio();
   const name = document.getElementById('player-name').value.trim();
   if (name) {
-    localStorage.setItem('klamczuch_name', name); // Zapisujemy nick na dysku
+    localStorage.setItem('klamczuch_name', name);
     socket.emit('joinGame', { name });
   }
 }
 
 socket.on('error', (msg) => {
     document.getElementById('join-error').textContent = msg;
-    // Jeśli próba dołączenia się nie udała (gra trwa a nas nie ma w bazie), zostajemy na ekranie głównym.
+});
+
+// NASŁUCHIWANIE GLOBALNEGO ODLICZANIA
+socket.on('globalCountdown', ({ timeLeft }) => {
+    const el = document.getElementById('global-transition-timer');
+    if (timeLeft > 0) {
+        el.style.display = 'block';
+        document.getElementById('gt-time').textContent = timeLeft;
+    } else {
+        el.style.display = 'none';
+    }
 });
 
 socket.on('state', s => {
@@ -372,7 +460,6 @@ socket.on('state', s => {
       grid.appendChild(card);
     });
 
-    // NOWA LOGIKA: Renderowanie paska postępu głosowania z "ptaszkami"
     const votedList = document.getElementById('voted-players-list');
     votedList.innerHTML = '';
     s.players.forEach(p => {
@@ -387,10 +474,18 @@ socket.on('state', s => {
   if (s.phase === 'votingResults') {
     showScreen('screen-voting-results');
     const list = document.getElementById('voting-results-list');
+    const tallyList = document.getElementById('voting-tally-list');
     list.innerHTML = '';
+    tallyList.innerHTML = '';
     myVote = null;
+    
+    // Tworzenie "Tabeli Przestawnej" głosów
+    const tally = {};
+
     if (s.votes) {
       Object.entries(s.votes).forEach(([voter, votedFor]) => {
+        tally[votedFor] = (tally[votedFor] || 0) + 1; // Zliczanie głosów
+        
         const change = s.lastVotingChanges[voter] || 0;
         const color = change >= 0 ? 'var(--green)' : 'var(--accent)';
         list.innerHTML += `
@@ -400,25 +495,40 @@ socket.on('state', s => {
           </div>`;
       });
     }
+
+    // Renderowanie podsumowania głosów obok
+    const sortedTally = Object.entries(tally).sort((a,b) => b[1] - a[1]);
+    if (sortedTally.length > 0) {
+        sortedTally.forEach(([name, count]) => {
+            let textGlos = 'głosów';
+            if (count === 1) textGlos = 'głos';
+            else if (count > 1 && count < 5) textGlos = 'głosy';
+
+            tallyList.innerHTML += `
+              <div class="vote-result-row" style="background: rgba(255,42,95,0.1); border-left: 4px solid var(--accent); justify-content: space-between;">
+                <span style="font-size:1.3rem;"><strong>${name}</strong></span>
+                <span style="color:var(--yellow); font-weight:800; font-size:1.3rem;">${count} ${textGlos}</span>
+              </div>`;
+        });
+    } else {
+        tallyList.innerHTML = `<div style="text-align:center; color:var(--muted); padding:10px;">Brak oddanych głosów</div>`;
+    }
   }
 
   if (s.phase === 'finalSummary') {
     showScreen('screen-final');
     renderScoreboard('final-scoreboard', s.players);
 
-    // LOGIKA EKRANU KOŃCOWEGO - KONFETTI i FANFARY (Odpalane tylko raz przy wejściu do tej fazy)
     if (currentPhase !== 'finalSummary') {
         if (typeof confetti === 'function') {
             confetti({ particleCount: 200, spread: 160, origin: { y: 0.6 } });
         }
         sndFanfare.currentTime = 0;
-        // Dźwięk może być zablokowany, jeśli gracz dołączył w trakcie gry i nigdzie nie kliknął,
-        // dlatego zabezpieczamy to blokiem .catch()
-        sndFanfare.play().catch(e => console.log("Błąd odtwarzania fanfar: ", e)); 
+        sndFanfare.play().catch(e => console.log(e)); 
     }
   }
   
-  currentPhase = s.phase; // Zapisujemy na jakiej fazie jesteśmy, żeby sprawdzić to przy kolejnym odświeżeniu
+  currentPhase = s.phase; 
 });
 
 function renderAnswerSlots(containerId, allAnswers, revealed, showAllText) {
@@ -450,13 +560,16 @@ socket.on('timerStart', ({ duration, phase, correct, message }) => {
     revMsg.style.color = correct ? 'var(--green)' : 'var(--accent)';
     document.getElementById('answer-section').style.display = 'none';
     
-    // ODTWARZANIE DŹWIĘKÓW POPRAWNEJ / ZŁEJ ODPOWIEDZI
-    if (correct) {
-        sndCorrect.currentTime = 0; // Reset na początek pliku
-        sndCorrect.play().catch(e => console.log(e));
-    } else {
-        sndWrong.currentTime = 0;
-        sndWrong.play().catch(e => console.log(e));
+    const now = Date.now();
+    if (now - lastSoundTime > 2000) {
+        lastSoundTime = now;
+        if (correct) {
+            sndCorrect.currentTime = 0;
+            sndCorrect.play().catch(e => console.log(e));
+        } else {
+            sndWrong.currentTime = 0;
+            sndWrong.play().catch(e => console.log(e));
+        }
     }
 
   } else {
@@ -480,6 +593,7 @@ socket.on('timerStart', ({ duration, phase, correct, message }) => {
             playTick();
         }
     }
+
     if (t <= 0) clearInterval(timerInterval);
   }, 1000);
 });
