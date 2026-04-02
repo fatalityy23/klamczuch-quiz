@@ -35,10 +35,14 @@
       
       <div style="margin-bottom: 15px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; border: 1px solid #333;">
         <label for="question-set" style="font-weight: bold; margin-bottom: 5px; display: block;">Wybierz pulę pytań do gry:</label>
+        
         <select id="question-set" style="margin-top: 0; margin-bottom: 10px;">
-          <option value="default">Zestaw Standardowy</option>
+          <option value="set1">Zestaw 1 (Batony, Wakacje, Superbohaterowie...)</option>
+          <option value="set2">Zestaw 2 (Rano, Mundur, Damska torebka...)</option>
+          <option value="set3">Zestaw 3 (Dania, Porno, Polacy, Gry...)</option>
           <option value="test">Zestaw Testowy (Odpowiedzi A, B, C...)</option>
         </select>
+        
         <button class="btn-green" onclick="socket.emit('startGame', { questionSet: document.getElementById('question-set').value })" style="width: 100%;">▶ Start Gry</button>
       </div>
 
@@ -76,7 +80,6 @@ function adminLogin() {
     if (d.ok) {
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('main').style.display = 'block';
-      // ZMIANA: Wysyłamy hasło z prośbą o dostęp
       socket.emit('joinAdmin', { password: pwd });
     } else alert('Błędne hasło');
   });

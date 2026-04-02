@@ -20,7 +20,7 @@ let gameState = {
   phase: 'lobby',
   players: {},
   adminSocketId: null,
-  questions: defaultQuestions(),
+  questions: getQuestions('set1'),
   currentRound: 0,
   totalRounds: 11,
   roundData: null,
@@ -66,96 +66,53 @@ function runTransition(seconds, callback) {
   }, 1000);
 }
 
-function defaultQuestions() {
+// ZESTAWY PYTAŃ (WSZYSTKIE ODWRÓCONE - Najmniej popularne = 1000 pkt, Najbardziej popularne = 100 pkt na dole)
+
+function getSet1() {
   return [
-    {
-      text: "Co robimy rano zaraz po przebudzeniu?",
-      answers: [
-        { text: "Telefon", points: 1000 }, { text: "Kawa", points: 900 }, { text: "Toaleta", points: 800 },
-        { text: "Mycie zebow", points: 700 }, { text: "Prysznic", points: 600 }, { text: "Sniadanie", points: 500 },
-        { text: "Ubieranie sie", points: 400 }, { text: "Scielenie lozka", points: 300 }, { text: "Budzik", points: 200 }, { text: "Picie wody", points: 100 }
-      ]
-    },
-    {
-      text: "Popularne polskie danie obiadowe",
-      answers: [
-        { text: "Schabowy", points: 1000 }, { text: "Pierogi", points: 900 }, { text: "Rosol", points: 800 },
-        { text: "Zupa pomidorowa", points: 700 }, { text: "Mielony", points: 600 }, { text: "Bigos", points: 500 },
-        { text: "Golabki", points: 400 }, { text: "Ryba", points: 300 }, { text: "Kopytka", points: 200 }, { text: "Placki ziemniaczane", points: 100 }
-      ]
-    },
-    {
-      text: "Co kojarzy sie z wakacjami nad morzem?",
-      answers: [
-        { text: "Piasek", points: 1000 }, { text: "Parawan", points: 900 }, { text: "Slonce", points: 800 },
-        { text: "Ryba", points: 700 }, { text: "Lody", points: 600 }, { text: "Mewy", points: 500 },
-        { text: "Gofry", points: 400 }, { text: "Muszelki", points: 300 }, { text: "Statek", points: 200 }, { text: "Latarnia", points: 100 }
-      ]
-    },
-    {
-      text: "Zawod, w ktorym trzeba nosic mundur",
-      answers: [
-        { text: "Policjant", points: 1000 }, { text: "Strazak", points: 900 }, { text: "Zolnierz", points: 800 },
-        { text: "Straznik graniczny", points: 700 }, { text: "Pilot", points: 600 }, { text: "Pielegniarka", points: 500 },
-        { text: "Kucharz", points: 400 }, { text: "Konduktor", points: 300 }, { text: "Marynarz", points: 200 }, { text: "Listonosz", points: 100 }
-      ]
-    },
-    {
-      text: "Co robimy, gdy stoimy w dlugim korku?",
-      answers: [
-        { text: "Sluchanie muzyki", points: 1000 }, { text: "Patrzenie w telefon", points: 900 }, { text: "Spiewanie", points: 800 },
-        { text: "Dlubanie w nosie", points: 700 }, { text: "Rozmawianie", points: 600 }, { text: "Przeklinanie", points: 500 },
-        { text: "Rozgladanie sie", points: 400 }, { text: "Jedzenie", points: 300 }, { text: "Myslenie", points: 200 }, { text: "GPS", points: 100 }
-      ]
-    },
-    {
-      text: "Co mozna znalezc w damskiej torebce?",
-      answers: [
-        { text: "Telefon", points: 1000 }, { text: "Portfel", points: 900 }, { text: "Klucze", points: 800 },
-        { text: "Chusteczki", points: 700 }, { text: "Szminka", points: 600 }, { text: "Lusterko", points: 500 },
-        { text: "Perfumy", points: 400 }, { text: "Krem do rak", points: 300 }, { text: "Dlugopis", points: 200 }, { text: "Tabletki", points: 100 }
-      ]
-    },
-    {
-      text: "Urzadzenie domowe, ktore psuje sie najczesciej",
-      answers: [
-        { text: "Pralka", points: 1000 }, { text: "Lodowka", points: 900 }, { text: "Czajnik", points: 800 },
-        { text: "Telewizor", points: 700 }, { text: "Zmywarka", points: 600 }, { text: "Odkurzacz", points: 500 },
-        { text: "Zarowka", points: 400 }, { text: "Kran", points: 300 }, { text: "Pilot", points: 200 }, { text: "Router", points: 100 }
-      ]
-    },
-    {
-      text: "Gdzie musimy zachowac absolutna cisze?",
-      answers: [
-        { text: "Biblioteka", points: 1000 }, { text: "Kosciol", points: 900 }, { text: "Szpital", points: 800 },
-        { text: "Kino", points: 700 }, { text: "Teatr", points: 600 }, { text: "Muzeum", points: 500 },
-        { text: "Pogrzeb", points: 400 }, { text: "Egzamin", points: 300 }, { text: "Sad", points: 200 }, { text: "Sypialnia", points: 100 }
-      ]
-    },
-    {
-      text: "Co kupujemy na stacji benzynowej poza paliwem?",
-      answers: [
-        { text: "Kawa", points: 1000 }, { text: "Hot-dog", points: 900 }, { text: "Plyn do spryskiwaczy", points: 800 },
-        { text: "Papierosy", points: 700 }, { text: "Napoje", points: 600 }, { text: "Chipsy", points: 500 },
-        { text: "Alkohol", points: 400 }, { text: "Gazeta", points: 300 }, { text: "Olej", points: 200 }, { text: "Zapalniczka", points: 100 }
-      ]
-    },
-    {
-      text: "Przedmiot, ktory czesto gubimy w domu",
-      answers: [
-        { text: "Klucze", points: 1000 }, { text: "Telefon", points: 900 }, { text: "Pilot", points: 800 },
-        { text: "Portfel", points: 700 }, { text: "Skarpetki", points: 600 }, { text: "Okulary", points: 500 },
-        { text: "Sluchawki", points: 400 }, { text: "Ladowarka", points: 300 }, { text: "Dlugopis", points: 200 }, { text: "Gumka do wlosow", points: 100 }
-      ]
-    },
-    {
-      text: "Co robimy, gdy nie mozemy zasnac w nocy?",
-      answers: [
-        { text: "Liczenie owiec", points: 1000 }, { text: "Czytanie", points: 900 }, { text: "Telefon", points: 800 },
-        { text: "Myslenie", points: 700 }, { text: "Picie melisy", points: 600 }, { text: "Muzyka", points: 500 },
-        { text: "Sprzatanie", points: 400 }, { text: "Jedzenie", points: 300 }, { text: "Telewizja", points: 200 }, { text: "Przewracanie sie", points: 100 }
-      ]
-    }
+    { text: "Wymień popularne batony", answers: [ { text: "3Bit", points: 1000 }, { text: "Milky Way", points: 900 }, { text: "KitKat", points: 800 }, { text: "Pawełek", points: 700 }, { text: "Lion", points: 600 }, { text: "Bounty", points: 500 }, { text: "Kinder Bueno", points: 400 }, { text: "Mars", points: 300 }, { text: "Twix", points: 200 }, { text: "Snickers", points: 100 } ] },
+    { text: "Co ludzie często udają, że rozumieją, choć nie rozumieją?", answers: [ { text: "Spalony", points: 1000 }, { text: "AI", points: 900 }, { text: "Excela", points: 800 }, { text: "Memy", points: 700 }, { text: "Umowę kredytu", points: 600 }, { text: "Instrukcję leku", points: 500 }, { text: "Sztukę współczesną", points: 400 }, { text: "Kryptowaluty", points: 300 }, { text: "Politykę", points: 200 }, { text: "Podatki", points: 100 } ] },
+    { text: "Państwo, którego nazwa kończy się na \"NIA\"", answers: [ { text: "Tanzania", points: 1000 }, { text: "Jordania", points: 900 }, { text: "Armenia", points: 800 }, { text: "Słowenia", points: 700 }, { text: "Kenia", points: 600 }, { text: "Estonia", points: 500 }, { text: "Albania", points: 400 }, { text: "Rumunia", points: 300 }, { text: "Dania", points: 200 }, { text: "Hiszpania", points: 100 } ] },
+    { text: "Do jakiego kraju Polacy jeżdżą/latają na wakacje?", answers: [ { text: "Tunezja", points: 1000 }, { text: "Albania", points: 900 }, { text: "Portugalia", points: 800 }, { text: "Bułgaria", points: 700 }, { text: "Chorwacja", points: 600 }, { text: "Turcja", points: 500 }, { text: "Egipt", points: 400 }, { text: "Włochy", points: 300 }, { text: "Hiszpania", points: 200 }, { text: "Grecja", points: 100 } ] },
+    { text: "Co ludzie najczęściej mają przy łóżku?", answers: [ { text: "Okulary", points: 1000 }, { text: "Szklankę", points: 900 }, { text: "Zegarek", points: 800 }, { text: "Pilot", points: 700 }, { text: "Chusteczki", points: 600 }, { text: "Książkę", points: 500 }, { text: "Prezerwatywę", points: 400 }, { text: "Ładowarkę", points: 300 }, { text: "Lampkę", points: 200 }, { text: "Telefon", points: 100 } ] },
+    { text: "Popularny superbohater", answers: [ { text: "Flash", points: 1000 }, { text: "Wolverine", points: 900 }, { text: "Wonder Woman", points: 800 }, { text: "Kapitan Ameryka", points: 700 }, { text: "Thor", points: 600 }, { text: "Iron Man", points: 500 }, { text: "Hulk", points: 400 }, { text: "Superman", points: 300 }, { text: "Spider-Man", points: 200 }, { text: "Batman", points: 100 } ] },
+    { text: "Wymień sport, w którym rywalizujesz bez bezpośredniego kontaktu fizycznego", answers: [ { text: "Kręgle", points: 1000 }, { text: "Dart", points: 900 }, { text: "Golf", points: 800 }, { text: "Bilard", points: 700 }, { text: "Squash", points: 600 }, { text: "Szachy", points: 500 }, { text: "Badminton", points: 400 }, { text: "Siatkówka", points: 300 }, { text: "Tenis stołowy", points: 200 }, { text: "Tenis", points: 100 } ] },
+    { text: "Popularne polskie nazwisko", answers: [ { text: "Woźniak", points: 1000 }, { text: "Szymański", points: 900 }, { text: "Zieliński", points: 800 }, { text: "Wójcik", points: 700 }, { text: "Kamiński", points: 600 }, { text: "Kowalczyk", points: 500 }, { text: "Wiśniewski", points: 400 }, { text: "Lewandowski", points: 300 }, { text: "Nowak", points: 200 }, { text: "Kowalski", points: 100 } ] },
+    { text: "Co można powiedzieć podczas gry w karty?", answers: [ { text: "Dzisiaj wyjątkowo ci idzie", points: 1000 }, { text: "Ale mnie przebiłeś", points: 900 }, { text: "Spokojnie, po kolei", points: 800 }, { text: "Teraz ja", points: 700 }, { text: "Masz niezły układ", points: 600 }, { text: "Odsłaniasz czy czekasz?", points: 500 }, { text: "Nie patrz", points: 400 }, { text: "Tasuj porządnie", points: 300 }, { text: "Nie kończ jeszcze", points: 200 }, { text: "Wchodzę", points: 100 } ] },
+    { text: "Co golimy?", answers: [ { text: "Brwi", points: 1000 }, { text: "Ręce", points: 900 }, { text: "Dupa", points: 800 }, { text: "Klatka piersiowa", points: 700 }, { text: "Cipka", points: 600 }, { text: "Wąsy", points: 500 }, { text: "Pachy", points: 400 }, { text: "Nogi", points: 300 }, { text: "Broda", points: 200 }, { text: "Jaja", points: 100 } ] },
+    { text: "Słowo, którego nazwa kończy się na \"owiec\"", answers: [ { text: "Związkowiec", points: 1000 }, { text: "Drogowiec", points: 900 }, { text: "Szybowiec", points: 800 }, { text: "Pokrowiec", points: 700 }, { text: "Zawodowiec", points: 600 }, { text: "Śmigłowiec", points: 500 }, { text: "Sportowiec", points: 400 }, { text: "Biurowiec", points: 300 }, { text: "Fachowiec", points: 200 }, { text: "Naukowiec", points: 100 } ] }
+  ];
+}
+
+function getSet2() {
+  return [
+    { text: "Co robimy rano zaraz po przebudzeniu?", answers: [ { text: "Picie wody", points: 1000 }, { text: "Budzik", points: 900 }, { text: "Ścielenie łóżka", points: 800 }, { text: "Ubieranie się", points: 700 }, { text: "Śniadanie", points: 600 }, { text: "Prysznic", points: 500 }, { text: "Mycie zębów", points: 400 }, { text: "Toaleta", points: 300 }, { text: "Kawa", points: 200 }, { text: "Telefon", points: 100 } ] },
+    { text: "Co kojarzy sie z wakacjami nad morzem?", answers: [ { text: "Latarnia", points: 1000 }, { text: "Statek", points: 900 }, { text: "Muszelki", points: 800 }, { text: "Gofry", points: 700 }, { text: "Mewy", points: 600 }, { text: "Lody", points: 500 }, { text: "Ryba", points: 400 }, { text: "Słońce", points: 300 }, { text: "Parawan", points: 200 }, { text: "Piasek", points: 100 } ] },
+    { text: "Zawod, w ktorym trzeba nosic mundur", answers: [ { text: "Listonosz", points: 1000 }, { text: "Marynarz", points: 900 }, { text: "Konduktor", points: 800 }, { text: "Kucharz", points: 700 }, { text: "Pielęgniarka", points: 600 }, { text: "Pilot", points: 500 }, { text: "Strażnik graniczny", points: 400 }, { text: "Żołnierz", points: 300 }, { text: "Strażak", points: 200 }, { text: "Policjant", points: 100 } ] },
+    { text: "Co robimy, gdy stoimy w dlugim korku?", answers: [ { text: "GPS", points: 1000 }, { text: "Myślenie", points: 900 }, { text: "Jedzenie", points: 800 }, { text: "Rozglądanie się", points: 700 }, { text: "Przeklinanie", points: 600 }, { text: "Rozmawianie", points: 500 }, { text: "Dłubanie w nosie", points: 400 }, { text: "Śpiewanie", points: 300 }, { text: "Patrzenie w telefon", points: 200 }, { text: "Słuchanie muzyki", points: 100 } ] },
+    { text: "Co mozna znalezc w damskiej torebce?", answers: [ { text: "Tabletki", points: 1000 }, { text: "Długopis", points: 900 }, { text: "Krem do rąk", points: 800 }, { text: "Perfumy", points: 700 }, { text: "Lusterko", points: 600 }, { text: "Szminka", points: 500 }, { text: "Chusteczki", points: 400 }, { text: "Klucze", points: 300 }, { text: "Portfel", points: 200 }, { text: "Telefon", points: 100 } ] },
+    { text: "Urzadzenie domowe, ktore psuje sie najczesciej", answers: [ { text: "Router", points: 1000 }, { text: "Pilot", points: 900 }, { text: "Kran", points: 800 }, { text: "Żarówka", points: 700 }, { text: "Odkurzacz", points: 600 }, { text: "Zmywarka", points: 500 }, { text: "Telewizor", points: 400 }, { text: "Czajnik", points: 300 }, { text: "Lodówka", points: 200 }, { text: "Pralka", points: 100 } ] },
+    { text: "Gdzie musimy zachowac absolutna cisze?", answers: [ { text: "Sypialnia", points: 1000 }, { text: "Sąd", points: 900 }, { text: "Egzamin", points: 800 }, { text: "Pogrzeb", points: 700 }, { text: "Muzeum", points: 600 }, { text: "Teatr", points: 500 }, { text: "Kino", points: 400 }, { text: "Szpital", points: 300 }, { text: "Kościół", points: 200 }, { text: "Biblioteka", points: 100 } ] },
+    { text: "Co kupujemy na stacji benzynowej poza paliwem?", answers: [ { text: "Zapalniczka", points: 1000 }, { text: "Olej", points: 900 }, { text: "Gazeta", points: 800 }, { text: "Alkohol", points: 700 }, { text: "Chipsy", points: 600 }, { text: "Napoje", points: 500 }, { text: "Papierosy", points: 400 }, { text: "Płyn do spryskiwaczy", points: 300 }, { text: "Hot-dog", points: 200 }, { text: "Kawa", points: 100 } ] },
+    { text: "Przedmiot, ktory czesto gubimy w domu", answers: [ { text: "Gumka do włosów", points: 1000 }, { text: "Długopis", points: 900 }, { text: "Ładowarka", points: 800 }, { text: "Słuchawki", points: 700 }, { text: "Okulary", points: 600 }, { text: "Skarpetki", points: 500 }, { text: "Portfel", points: 400 }, { text: "Pilot", points: 300 }, { text: "Telefon", points: 200 }, { text: "Klucze", points: 100 } ] },
+    { text: "Co robimy, gdy nie mozemy zasnac w nocy?", answers: [ { text: "Przewracanie się", points: 1000 }, { text: "Telewizja", points: 900 }, { text: "Jedzenie", points: 800 }, { text: "Sprzątanie", points: 700 }, { text: "Muzyka", points: 600 }, { text: "Picie melisy", points: 500 }, { text: "Myślenie", points: 400 }, { text: "Telefon", points: 300 }, { text: "Czytanie", points: 200 }, { text: "Liczenie owiec", points: 100 } ] },
+    { text: "Jakie jest najczęstsze wymówki by nie iść na siłownię?", answers: [ { text: "Brak sprzętu", points: 1000 }, { text: "Korki", points: 900 }, { text: "Deszcz", points: 800 }, { text: "Zimno", points: 700 }, { text: "Dużo ludzi", points: 600 }, { text: "Ból mięśni", points: 500 }, { text: "Za późno", points: 400 }, { text: "Brak czasu", points: 300 }, { text: "Choroba", points: 200 }, { text: "Zmęczenie", points: 100 } ] }
+  ];
+}
+
+function getSet3() {
+  return [
+    { text: "Popularne polskie danie obiadowe", answers: [ { text: "Placki ziemniaczane", points: 1000 }, { text: "Kopytka", points: 900 }, { text: "Żurek", points: 800 }, { text: "Gołąbki", points: 700 }, { text: "Bigos", points: 600 }, { text: "Mielony", points: 500 }, { text: "Zupa pomidorowa", points: 400 }, { text: "Rosół", points: 300 }, { text: "Pierogi", points: 200 }, { text: "Schabowy", points: 100 } ] },
+    { text: "Najczęściej oglądane kategorie porno", answers: [ { text: "Asian", points: 1000 }, { text: "Ebony", points: 900 }, { text: "Hentai", points: 800 }, { text: "Threesome", points: 700 }, { text: "Japanese", points: 600 }, { text: "Mature", points: 500 }, { text: "Anal", points: 400 }, { text: "MILF", points: 300 }, { text: "Transgender", points: 200 }, { text: "Lesbian", points: 100 } ] },
+    { text: "Najbardziej znani Polacy na świecie (all time - imię i nazwisko)", answers: [ { text: "Roman Polański", points: 1000 }, { text: "Wisława Szymborska", points: 900 }, { text: "Andrzej Wajda", points: 800 }, { text: "Lech Wałęsa", points: 700 }, { text: "Iga Świątek", points: 600 }, { text: "Robert Lewandowski", points: 500 }, { text: "Fryderyk Chopin", points: 400 }, { text: "Maria Skłodowska-Curie", points: 300 }, { text: "Mikołaj Kopernik", points: 200 }, { text: "Jan Paweł II", points: 100 } ] },
+    { text: "Najczęściej używane synonimy kupy", answers: [ { text: "Bombardier", points: 1000 }, { text: "Kraken", points: 900 }, { text: "Kupsztal", points: 800 }, { text: "Bobek", points: 700 }, { text: "Kał", points: 600 }, { text: "Stolec", points: 500 }, { text: "Dwójka", points: 400 }, { text: "Klocek", points: 300 }, { text: "Sraka", points: 200 }, { text: "Gówno", points: 100 } ] },
+    { text: "Państwa, których nazwa składa się z więcej niż jednego słowa", answers: [ { text: "Republika Południowej Afryki", points: 1000 }, { text: "Wybrzeże Kości Słoniowej", points: 900 }, { text: "Papua-Nowa Gwinea", points: 800 }, { text: "Bośnia i Hercegowina", points: 700 }, { text: "Korea Północna", points: 600 }, { text: "Korea Południowa", points: 500 }, { text: "Zjednoczone Emiraty Arabskie", points: 400 }, { text: "Arabia Saudyjska", points: 300 }, { text: "Nowa Zelandia", points: 200 }, { text: "Stany Zjednoczone", points: 100 } ] },
+    { text: "Gry, które zna każdy", answers: [ { text: "Call of Duty", points: 1000 }, { text: "Fortnite", points: 900 }, { text: "The Sims", points: 800 }, { text: "Pokemon", points: 700 }, { text: "GTA", points: 600 }, { text: "Pac-Man", points: 500 }, { text: "Tetris", points: 400 }, { text: "Mario", points: 300 }, { text: "FIFA", points: 200 }, { text: "Minecraft", points: 100 } ] },
+    { text: "Rozpoznawalne marki telefonu(all time)", answers: [ { text: "HTC", points: 1000 }, { text: "LG", points: 900 }, { text: "Siemens", points: 800 }, { text: "Huawei", points: 700 }, { text: "Motorola", points: 600 }, { text: "Sony Ericsson", points: 500 }, { text: "Xiaomi", points: 400 }, { text: "iPhone", points: 300 }, { text: "Samsung", points: 200 }, { text: "Nokia", points: 100 } ] },
+    { text: "Z którym instrumentem kobietom jest najbardziej do twarzy", answers: [ { text: "Puzon", points: 1000 }, { text: "Kontrabas", points: 900 }, { text: "Akordeon", points: 800 }, { text: "Saksofon", points: 700 }, { text: "Wiolonczela", points: 600 }, { text: "Harfa", points: 500 }, { text: "Gitara", points: 400 }, { text: "Fortepian", points: 300 }, { text: "Flet", points: 200 }, { text: "Skrzypce", points: 100 } ] },
+    { text: "Co zdaniem kobiet mężczyźni lubią bardziej niż seks?", answers: [ { text: "Łowienie ryb", points: 1000 }, { text: "Władzę", points: 900 }, { text: "Dobre jedzenie", points: 800 }, { text: "Piwo", points: 700 }, { text: "Gry komputerowe", points: 600 }, { text: "Szybką jazdę samochodem", points: 500 }, { text: "Mecze", points: 400 }, { text: "Spokój", points: 300 }, { text: "Pieniądze", points: 200 }, { text: "Nie ma takiej rzeczy", points: 100 } ] },
+    { text: "Jakie czynności w pracy wolisz trzymać w tajemnicy przed szefem?", answers: [ { text: "Przeglądanie ofert pracy", points: 1000 }, { text: "Plotkowanie", points: 900 }, { text: "Wychodzenie na papierosa", points: 800 }, { text: "Urywanie się przed czasem", points: 700 }, { text: "Uprawianie seksu", points: 600 }, { text: "Drzemki", points: 500 }, { text: "Obijanie się", points: 400 }, { text: "Surfowanie w internecie", points: 300 }, { text: "Prywatne rozmowy telefoniczne", points: 200 }, { text: "Spóźnianie się", points: 100 } ] },
+    { text: "Finałowe pytanie- Co kupujemy na zapas", answers: [ { text: "Konserwy", points: 1000 }, { text: "Papierosy", points: 900 }, { text: "Mąkę", points: 800 }, { text: "Ryż", points: 700 }, { text: "Ziemniaki", points: 600 }, { text: "Prezerwatywy", points: 500 }, { text: "Alkohol", points: 400 }, { text: "Opał", points: 300 }, { text: "Cukier", points: 200 }, { text: "Papier toaletowy", points: 100 } ] }
   ];
 }
 
@@ -165,13 +122,22 @@ function testQuestions() {
     q.push({
       text: `[TEST] Pytanie testowe ${i}`,
       answers: [
-        { text: "A", points: 1000 }, { text: "B", points: 900 }, { text: "C", points: 800 },
-        { text: "D", points: 700 }, { text: "E", points: 600 }, { text: "F", points: 500 },
-        { text: "G", points: 400 }, { text: "H", points: 300 }, { text: "I", points: 200 }, { text: "J", points: 100 },
+        { text: "J", points: 1000 }, { text: "I", points: 900 }, { text: "H", points: 800 },
+        { text: "G", points: 700 }, { text: "F", points: 600 }, { text: "E", points: 500 },
+        { text: "D", points: 400 }, { text: "C", points: 300 }, { text: "B", points: 200 }, { text: "A", points: 100 },
       ]
     });
   }
   return q;
+}
+
+// Funkcja decydująca, którą paczkę pobrać
+function getQuestions(setId) {
+    if (setId === 'set1') return getSet1();
+    if (setId === 'set2') return getSet2();
+    if (setId === 'set3') return getSet3();
+    if (setId === 'test') return testQuestions();
+    return getSet1(); // Domyślnie
 }
 
 function levenshtein(a, b) {
@@ -285,7 +251,7 @@ function showNoAnswer(playerName) {
       return;
     }
   }
-  io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Czas minal! Brak odpowiedzi.' });
+  io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Czas minął! Brak odpowiedzi.' });
   gameState.revealTimer = setTimeout(() => { nextTurn(); }, 4000);
 }
 
@@ -304,9 +270,8 @@ function nextTurn() {
 function startRoundSummary() {
   gameState.phase = 'roundSummary';
   broadcastState();
-  clearTransitions(); // ZMIANA: Usunięto widoczne odliczanie!
+  clearTransitions();
   
-  // Zwykłe przeczekanie 3 sekund "w ukryciu" przed odsłonięciem
   setTimeout(() => { if (!gameState.isPaused) startRevealSequence(); }, 3000);
 }
 
@@ -326,7 +291,6 @@ function startRevealSequence() {
       step++;
       setTimeout(revealNext, 2000);
     } else {
-      // Gdy skończą odkrywać się odpowiedzi, to odliczamy do następnej fazy
       runTransition(5, () => { postRoundRouting(); });
     }
   }
@@ -551,15 +515,15 @@ io.on('connection', (socket) => {
     if (!normName) return;
     if (gameState.players[normName]) {
       if (gameState.players[normName].connected) {
-        socket.emit('error', 'Gracz o tym imieniu jest juz w grze.');
+        socket.emit('error', 'Gracz o tym imieniu jest już w grze.');
         return;
       }
       gameState.players[normName].socketId = socket.id;
       gameState.players[normName].connected = true;
       broadcastState();
     } else {
-      if (gameState.phase !== 'lobby') { socket.emit('error', 'Gra juz trwa.'); return; }
-      if (Object.keys(gameState.players).length >= 7) { socket.emit('error', 'Maksymalna liczba graczy osiagnieta.'); return; }
+      if (gameState.phase !== 'lobby') { socket.emit('error', 'Gra już trwa.'); return; }
+      if (Object.keys(gameState.players).length >= 7) { socket.emit('error', 'Maksymalna liczba graczy osiągnięta.'); return; }
       gameState.players[normName] = { name: normName, socketId: socket.id, score: 0, isLiar: false, connected: true, wrongAnswers: 0 };
       broadcastState();
     }
@@ -586,7 +550,8 @@ io.on('connection', (socket) => {
     if (socket.id !== gameState.adminSocketId) return;
     if (Object.keys(gameState.players).length < 2) { socket.emit('error', 'Potrzeba co najmniej 2 graczy.'); return; }
     
-    gameState.questions = questionSet === 'test' ? testQuestions() : defaultQuestions();
+    // ZMIANA: Przekazanie identyfikatora wybranego zestawu
+    gameState.questions = getQuestions(questionSet);
     
     gameState.currentRound = 0;
     gameState.liarHistory = [];
@@ -615,12 +580,12 @@ io.on('connection', (socket) => {
       const ans = rd.answers[idx];
       player.score += ans.points;
       rd.revealedAnswers.push({ index: idx, text: ans.text, points: ans.points, byName: player.name });
-      io.emit('timerStart', { duration: 4, phase: 'reveal', correct: true, message: `Trafiles! +${ans.points} pkt` });
+      io.emit('timerStart', { duration: 4, phase: 'reveal', correct: true, message: `Trafiłeś! +${ans.points} pkt` });
       gameState.revealTimer = setTimeout(() => nextTurn(), 4000);
     } else {
       gameState.lastWrongAnswer = { playerName: player.name, text: answer };
       rd.wrongAnswersList.push({ text: answer, byName: player.name });
-      io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Zla odpowiedz!' });
+      io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Zła odpowiedź!' });
       broadcastState();
       gameState.revealTimer = setTimeout(() => {
         if (gameState.currentRound === 11) {
@@ -646,7 +611,7 @@ io.on('connection', (socket) => {
       const wIdx = rd.wrongAnswersList.findIndex(w => w.text === gameState.lastWrongAnswer.text && w.byName === playerName);
       if (wIdx !== -1) rd.wrongAnswersList.splice(wIdx, 1);
 
-      io.emit('timerStart', { duration: 3, phase: 'reveal', correct: true, message: `Korekta Admina: Trafiles! +${ans.points} pkt` });
+      io.emit('timerStart', { duration: 3, phase: 'reveal', correct: true, message: `Korekta Admina: Trafiłeś! +${ans.points} pkt` });
       gameState.lastWrongAnswer = null;
       gameState.revealTimer = setTimeout(() => nextTurn(), 3000);
     }
@@ -677,4 +642,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Serwer dziala na porcie ${PORT}`));
+server.listen(PORT, () => console.log(`Serwer działa na porcie ${PORT}`));
