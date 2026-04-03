@@ -183,17 +183,14 @@
     </div>
     
     <div style="display:flex; flex-direction:column; gap:20px;">
-      
       <div class="card" id="revealed-answers-card">
         <h3>Odpowiedzi (10)</h3>
         <div id="revealed-answers"></div>
       </div>
-      
       <div class="card" id="wrong-answers-card" style="display:none; border:1px solid var(--accent);">
         <h3 style="color:var(--accent);">Błędne strzały</h3>
         <div id="wrong-answers-list"></div>
       </div>
-
       <div id="liar-panel">
         <h3 style="color:var(--accent); font-weight: 800;">🔴 KŁAMCZUCH</h3>
         <div id="liar-answers-list"></div>
@@ -225,14 +222,12 @@
       <h3 style="color:var(--blue); margin-bottom:15px;">Status głosowania:</h3>
       <div id="voted-players-list" style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px;"></div>
     </div>
-
   </div>
 </div>
 
 <div class="screen" id="screen-voting-results">
   <div class="card" style="max-width:1000px; margin:0 auto; width:100%;">
     <h2 style="text-align:center; margin-bottom:15px; font-size: 2rem;">Wyniki Głosowania</h2>
-    
     <div id="voting-verdict" style="margin-bottom: 25px; padding: 20px; border-radius: 12px; background: rgba(0,0,0,0.3); text-align: center; border: 2px solid transparent;"></div>
 
     <div class="grid-2col">
@@ -246,7 +241,6 @@
         <div id="voting-tally-list" style="font-size: 1.2rem; display: flex; flex-direction: column; gap: 10px;"></div>
       </div>
     </div>
-
   </div>
 </div>
 
@@ -501,8 +495,6 @@ socket.on('state', s => {
         const verdictEl = document.getElementById('voting-verdict');
         
         let recoveredHtml = '';
-        // Odtworzenie punktów pojawia się zarówno przy złapaniu kłamczucha, 
-        // jak i na koniec 10. rundy jeśli z tymi punktami wejdzie w finał!
         if (s.lastRecoveredPoints && s.lastRecoveredPoints > 0) {
             recoveredHtml = `<div style="background:rgba(255,215,0,0.15); border:2px solid var(--yellow); padding:10px; border-radius:8px; margin-top:15px; box-shadow: 0 0 15px rgba(255,215,0,0.4);">
                                <strong style="color:var(--yellow); font-size:1.3rem;">💰 Kłamczuch rozbija bank! Za wcześniejsze mylne oskarżenia tłumu zgarnia ukryte +${s.lastRecoveredPoints} pkt!</strong>
@@ -589,13 +581,24 @@ socket.on('state', s => {
   if (s.phase === 'finalSummary') {
     showScreen('screen-final');
     
-    const latestVerdict = s.liarHistory[s.liarHistory.length - 1];
-    if (latestVerdict && latestVerdict.round === 11) {
-        const finalVerdictEl = document.getElementById('final-verdict');
-        if (latestVerdict.caught) {
-            finalVerdictEl.innerHTML = `<h3 style="color:var(--green); font-size: 1.8rem;">🚨 Kłamczuch (${latestVerdict.liarName}) został ZŁAPANY!</h3>`;
-        } else {
-            finalVerdictEl.innerHTML = `<h3 style="color:var(--accent); font-size: 1.8rem;">💨 Kłamczuch (${latestVerdict.liarName}) WYGRAŁ i wymknął się!</h3>`;
+    const finalVerdictEl = document.getElementById('final-verdict');
+    
+    // ZMIANA: Obsługa przerwania gry z powodu 2 błędów
+    if (s.endReason === 'mistakes') {
+        const sorted = [...s.players].sort((a,b) => b.score - a.score);
+        const winner = sorted[0];
+        finalVerdictEl.innerHTML = `
+            <h3 style="color:var(--yellow); font-size: 2.5rem; margin-bottom: 10px;">🏆 Wygrywa: ${winner.name}!</h3>
+            <p style="color:var(--muted); font-size: 1.2rem;">Gra zakończona – przeciwnik popełnił 2 błędy.</p>
+        `;
+    } else {
+        const latestVerdict = s.liarHistory[s.liarHistory.length - 1];
+        if (latestVerdict && latestVerdict.round === 11) {
+            if (latestVerdict.caught) {
+                finalVerdictEl.innerHTML = `<h3 style="color:var(--green); font-size: 1.8rem;">🚨 Kłamczuch (${latestVerdict.liarName}) został ZŁAPANY!</h3>`;
+            } else {
+                finalVerdictEl.innerHTML = `<h3 style="color:var(--accent); font-size: 1.8rem;">💨 Kłamczuch (${latestVerdict.liarName}) WYGRAŁ i wymknął się!</h3>`;
+            }
         }
     }
 
