@@ -183,6 +183,7 @@
     </div>
     
     <div style="display:flex; flex-direction:column; gap:20px;">
+      
       <div class="card" id="revealed-answers-card">
         <h3>Odpowiedzi (10)</h3>
         <div id="revealed-answers"></div>
@@ -498,22 +499,24 @@ socket.on('state', s => {
     const latestVerdict = s.liarHistory[s.liarHistory.length - 1];
     if (latestVerdict && latestVerdict.round === s.currentRound) {
         const verdictEl = document.getElementById('voting-verdict');
+        
+        let recoveredHtml = '';
+        // Odtworzenie punktów pojawia się zarówno przy złapaniu kłamczucha, 
+        // jak i na koniec 10. rundy jeśli z tymi punktami wejdzie w finał!
+        if (s.lastRecoveredPoints && s.lastRecoveredPoints > 0) {
+            recoveredHtml = `<div style="background:rgba(255,215,0,0.15); border:2px solid var(--yellow); padding:10px; border-radius:8px; margin-top:15px; box-shadow: 0 0 15px rgba(255,215,0,0.4);">
+                               <strong style="color:var(--yellow); font-size:1.3rem;">💰 Kłamczuch rozbija bank! Za wcześniejsze mylne oskarżenia tłumu zgarnia ukryte +${s.lastRecoveredPoints} pkt!</strong>
+                             </div>`;
+        }
+
         if (latestVerdict.caught) {
-            
-            // ZMIANA: Pokazujemy piękny komunikat jeśli zdobył w tle punkty
-            let recoveredHtml = '';
-            if (s.lastRecoveredPoints && s.lastRecoveredPoints > 0) {
-                recoveredHtml = `<div style="background:rgba(255,215,0,0.15); border:2px solid var(--yellow); padding:10px; border-radius:8px; margin-top:15px; box-shadow: 0 0 15px rgba(255,215,0,0.4);">
-                                   <strong style="color:var(--yellow); font-size:1.3rem;">💰 Kłamczuch rozbija bank! Za wcześniejsze mylne oskarżenia tłumu kłamczuch zgarnia ukryte +${s.lastRecoveredPoints} pkt!</strong>
-                                 </div>`;
-            }
-            
             verdictEl.innerHTML = `<h3 style="color:var(--green); margin:0; font-size:1.6rem;">🚨 Kłamczuch został złapany!</h3>
                                    <p style="font-size:1.2rem; margin-top:5px;">Kłamczuchem był gracz: <strong>${latestVerdict.liarName}</strong>.</p>
                                    ${recoveredHtml}`;
             verdictEl.style.borderColor = 'var(--green)';
         } else {
-            verdictEl.innerHTML = `<h3 style="color:var(--accent); margin:0; font-size:1.6rem;">💨 Nie wykryto kłamczucha!</h3>`;
+            verdictEl.innerHTML = `<h3 style="color:var(--accent); margin:0; font-size:1.6rem;">💨 Nie wykryto kłamczucha!</h3>
+                                   ${recoveredHtml}`;
             verdictEl.style.borderColor = 'var(--accent)';
         }
     }
@@ -565,10 +568,8 @@ socket.on('state', s => {
     }
   }
 
-  // ZMIANA: EKRAN PRZEDFINAŁOWY WYŚWIETLAJĄCY KTO PRZESZEDŁ
   if (s.phase === 'preFinal') {
     showScreen('screen-pre-final');
-    // Sortujemy graczy żeby wyciągnąć 2 z najwyższym wynikiem, po wszystkich roszadach.
     const sorted = [...s.players].sort((a,b) => b.score - a.score);
     const top2 = sorted.slice(0,2);
     

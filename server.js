@@ -42,8 +42,8 @@ let gameState = {
   isPaused: false,
   lastVotingChanges: {},
   isAnswerLocked: false,
-  hiddenLiarPoints: 0,     // ZMIANA: Ukryta pula punktów dla kłamczucha
-  lastRecoveredPoints: 0   // ZMIANA: Informacja o tym, ile punktów odzyskał
+  hiddenLiarPoints: 0,
+  lastRecoveredPoints: 0
 };
 
 let globalTransitionInterval = null;
@@ -181,7 +181,7 @@ function broadcastState() {
     liarHistory: gameState.liarHistory,
     isPaused: gameState.isPaused,
     lastVotingChanges: gameState.lastVotingChanges,
-    lastRecoveredPoints: gameState.lastRecoveredPoints // ZMIANA: Wysyłanie info o odzyskanych pkt
+    lastRecoveredPoints: gameState.lastRecoveredPoints
   };
 
   if (gameState.roundData) {
@@ -236,7 +236,14 @@ function startTurnTimer() {
 
   const currentName = gameState.roundOrder[gameState.currentTurnIndex];
   if (!currentName) {
-    if (gameState.currentRound === 11) endRound11(); else startRoundSummary();
+    if (gameState.currentRound === 11) {
+      // Jeśli braknie osób w kolejce w R. 11 a nikt nie odpadł (mało prawdopodobne, ale możliwe),
+      // to ostatecznym krokiem bez mów jest finalSummary.
+      gameState.phase = 'finalSummary';
+      broadcastState();
+    } else {
+      startRoundSummary();
+    }
     return;
   }
   
@@ -260,8 +267,14 @@ function showNoAnswer(playerName) {
   if (gameState.currentRound === 11 && gameState.players[playerName]) {
     gameState.players[playerName].wrongAnswers++;
     if (gameState.players[playerName].wrongAnswers >= 2) {
-      endGameInstantly(playerName);
-      return;
+      // POPRAWKA: Przejście prosto do podsumowania bez mów!
+      io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Druga zła odpowiedź! Koniec gry!' });
+      gameState.revealTimer = setTimeout(() => {
+          gameState.liarHistory.push({ round: 11, liarName: gameState.liarName, caught: playerName === gameState.liarName, accusedName: playerName });
+          gameState.phase = 'finalSummary';
+          broadcastState();
+      }, 4000);
+      return; 
     }
   }
   io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Czas minął! Brak odpowiedzi.' });
@@ -275,7 +288,11 @@ function nextTurn() {
   }
   gameState.currentTurnIndex++;
   if (gameState.currentRound === 11) {
-    if (gameState.currentTurnIndex >= 6 || gameState.roundData.revealedAnswers.length >= 10) endRound11();
+    if (gameState.currentTurnIndex >= 6 || gameState.roundData.revealedAnswers.length >= 10) {
+        // Koniec bez mów
+        gameState.phase = 'finalSummary';
+        broadcastState();
+    }
     else { broadcastState(); startTurnTimer(); }
   } else {
     if (gameState.currentTurnIndex >= gameState.roundOrder.length || gameState.roundData.revealedAnswers.length >= 10) startRoundSummary();
@@ -344,7 +361,6 @@ function startVoting() {
   }, 1000);
 }
 
-// ZMIANA: Pełna logika ukrytych punktów i karania za błędy
 function resolveVoting() {
   if (gameState.phase !== 'voting') return;
   clearInterval(gameState.votingInterval);
@@ -365,23 +381,22 @@ function resolveVoting() {
   const changes = {};
   let liarCaught = (accusedName === gameState.liarName && maxVotes >= 3);
   let innocentCaught = (accusedName !== null && accusedName !== gameState.liarName && accusedName !== 'ABSTAIN' && maxVotes >= 3);
+  let isRound10 = (gameState.currentRound === 10);
   
   let recovered = 0;
 
   if (liarCaught) {
+    // POPRAWKA 1: Kłamczuch NIE TRACI punktów za wpadkę.
     if (gameState.players[gameState.liarName]) {
-        // Kłamczuch traci za wpadkę
-        gameState.players[gameState.liarName].score = Math.max(0, gameState.players[gameState.liarName].score - 300);
-        changes[gameState.liarName] = -300;
-
         // Jeśli kłamczuch nabił ukryte punkty, odbiera je teraz
         if (gameState.hiddenLiarPoints > 0) {
             gameState.players[gameState.liarName].score += gameState.hiddenLiarPoints;
             recovered = gameState.hiddenLiarPoints;
+            changes[gameState.liarName] = recovered; // Zapisujemy tylko zysk dla widoku
         }
     }
     
-    // Głosujący na kłamczucha zyskują punkty
+    // Głosujący prawidłowo na kłamczucha zyskują 500 pkt
     Object.entries(gameState.votes).forEach(([voterName, votedFor]) => {
       if (votedFor === gameState.liarName && voterName !== gameState.liarName) {
           if(gameState.players[voterName]) {
@@ -391,7 +406,7 @@ function resolveVoting() {
       }
     });
 
-    gameState.hiddenLiarPoints = 0; // Zerujemy pulę, bo kłamczuch został rozliczony
+    gameState.hiddenLiarPoints = 0;
 
   } else if (innocentCaught) {
     // Tłum oskarża niewinnego! Głosujący tracą punkty
@@ -403,8 +418,19 @@ function resolveVoting() {
           }
       }
     });
-    // Kłamczuch zgarnia 1000 punktów do ukrytej puli
+    // Kłamczuchowi w tajemnicy ładuje się konto (+1000)
     gameState.hiddenLiarPoints += 1000;
+  }
+
+  // POPRAWKA 2: Jeśli to Runda 10 i tłum znów zepsuł (kłamczuch ocalał), to żeby kłamczuch 
+  // wszedł do finału z nagrodą - rozbijamy jego bank właśnie w tym miejscu (przed obliczeniem finalistów).
+  if (isRound10 && gameState.hiddenLiarPoints > 0 && !liarCaught) {
+      if (gameState.players[gameState.liarName]) {
+          gameState.players[gameState.liarName].score += gameState.hiddenLiarPoints;
+          recovered = gameState.hiddenLiarPoints;
+          changes[gameState.liarName] = (changes[gameState.liarName] || 0) + recovered;
+      }
+      gameState.hiddenLiarPoints = 0;
   }
 
   gameState.lastRecoveredPoints = recovered;
@@ -444,7 +470,6 @@ function startNextRound() {
     gameState.hiddenLiarPoints = 0;
   }
 
-  // ZMIANA: Ekran Przedfinałowy ładuje się ZAMIAST bezpośredniego startu rundy 11
   if (gameState.currentRound === 11) {
     gameState.phase = 'preFinal';
     broadcastState();
@@ -469,11 +494,9 @@ function startNextRound() {
 }
 
 function setupRound11() {
-  // Ponieważ w preFinal wszystkie punkty są już zaktualizowane, teraz bezpiecznie wybieramy top2
   const sorted = Object.values(gameState.players).sort((a, b) => b.score - a.score);
   gameState.top2 = sorted.slice(0, 2).map(p => p.name);
   
-  // Oczyszczamy role z całej gry i losujemy NA NOWO, ale tylko spomiędzy dwójki finalistów
   Object.values(gameState.players).forEach(p => p.isLiar = false);
   gameState.liarName = pickNewLiar(null, gameState.top2);
 
@@ -489,71 +512,6 @@ function setupRound11() {
   gameState.phase = 'round';
   broadcastState();
   startTurnTimer();
-}
-
-function endRound11() {
-  gameState.phase = 'speeches';
-  const firstSpeaker = gameState.players[gameState.top2[0]].score >= gameState.players[gameState.top2[1]].score ? gameState.top2[0] : gameState.top2[1];
-  gameState.speechPlayerName = firstSpeaker;
-  gameState.votingTimeLeft = 45;
-  broadcastState();
-
-  if (gameState.votingInterval) clearInterval(gameState.votingInterval);
-  gameState.votingInterval = setInterval(() => {
-    if (gameState.isPaused) return;
-    gameState.votingTimeLeft--;
-    io.emit('votingTimer', { timeLeft: gameState.votingTimeLeft });
-    if (gameState.votingTimeLeft <= 0) {
-      clearInterval(gameState.votingInterval);
-      const secondSpeaker = gameState.top2.find(n => n !== firstSpeaker);
-      if (gameState.speechPlayerName === firstSpeaker) {
-        gameState.speechPlayerName = secondSpeaker;
-        gameState.votingTimeLeft = 45;
-        broadcastState();
-        gameState.votingInterval = setInterval(() => {
-          if (gameState.isPaused) return;
-          gameState.votingTimeLeft--;
-          io.emit('votingTimer', { timeLeft: gameState.votingTimeLeft });
-          if (gameState.votingTimeLeft <= 0) {
-            clearInterval(gameState.votingInterval);
-            startFinalVoting();
-          }
-        }, 1000);
-      }
-    }
-  }, 1000);
-}
-
-function startFinalVoting() {
-  gameState.phase = 'finalVoting';
-  gameState.votes = {};
-  gameState.votingTimeLeft = 45;
-  broadcastState();
-  gameState.votingInterval = setInterval(() => {
-    if (gameState.isPaused) return;
-    gameState.votingTimeLeft--;
-    io.emit('votingTimer', { timeLeft: gameState.votingTimeLeft });
-    if (gameState.votingTimeLeft <= 0) {
-      resolveFinalVoting();
-    }
-  }, 1000);
-}
-
-function resolveFinalVoting() {
-  if (gameState.phase !== 'finalVoting') return;
-  clearInterval(gameState.votingInterval);
-  gameState.phase = 'finalSummary';
-  
-  const tally = {};
-  Object.values(gameState.votes).forEach(vName => {
-    if(vName !== 'ABSTAIN') tally[vName] = (tally[vName] || 0) + 1; 
-  });
-  let maxVotes = 0, accusedName = null;
-  for (const [name, count] of Object.entries(tally)) {
-    if (count > maxVotes) { maxVotes = count; accusedName = name; }
-  }
-  gameState.liarHistory.push({ round: 11, liarName: gameState.liarName, caught: accusedName === gameState.liarName, accusedName: accusedName || 'Brak' });
-  broadcastState();
 }
 
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
@@ -647,15 +605,25 @@ io.on('connection', (socket) => {
     } else {
       gameState.lastWrongAnswer = { playerName: player.name, text: answer };
       rd.wrongAnswersList.push({ text: answer, byName: player.name });
+      
+      if (gameState.currentRound === 11) {
+          player.wrongAnswers++;
+          if (player.wrongAnswers >= 2) {
+              // POPRAWKA: Przejście prosto do podsumowania bez mów!
+              io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Druga zła odpowiedź! Koniec gry!' });
+              broadcastState();
+              gameState.revealTimer = setTimeout(() => { 
+                  gameState.liarHistory.push({ round: 11, liarName: gameState.liarName, caught: player.name === gameState.liarName, accusedName: player.name });
+                  gameState.phase = 'finalSummary';
+                  broadcastState();
+              }, 4000);
+              return; 
+          }
+      }
+
       io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Zła odpowiedź!' });
       broadcastState();
-      gameState.revealTimer = setTimeout(() => {
-        if (gameState.currentRound === 11) {
-          player.wrongAnswers++;
-          if (player.wrongAnswers >= 2) { endGameInstantly(player.name); return; }
-        }
-        nextTurn();
-      }, 4000);
+      gameState.revealTimer = setTimeout(() => { nextTurn(); }, 4000);
     }
   });
 
@@ -680,7 +648,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('vote', ({ votedName }) => {
-    if (!['voting', 'finalVoting'].includes(gameState.phase)) return;
+    if (!['voting'].includes(gameState.phase)) return;
     const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
     if (!player) return;
     
@@ -692,7 +660,6 @@ io.on('connection', (socket) => {
 
     if (currentVotes >= expectedVotes) {
        if (gameState.phase === 'voting') resolveVoting();
-       else if (gameState.phase === 'finalVoting') resolveFinalVoting();
     }
   });
 
