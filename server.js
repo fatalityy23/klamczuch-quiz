@@ -45,8 +45,8 @@ let gameState = {
   hiddenLiarPoints: 0,
   lastRecoveredPoints: 0,
   endReason: null,
-  finalVotes: null,   // Do przechowywania kto na kogo głosował w finale
-  finalTally: null    // Podsumowanie finału
+  finalVotes: null,   
+  finalTally: null    
 };
 
 let globalTransitionInterval = null;
@@ -157,34 +157,54 @@ function normalize(str) {
   return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();
 }
 
+// ZMIANA: Nowa, bardzo precyzyjna i bezpieczna wersja algorytmu sprawdzania (likwiduje "a", "b", "owiec")
 function matchAnswer(input, answers, revealedIdxs) {
   const normInput = normalize(input);
   for (let i = 0; i < answers.length; i++) {
     if (revealedIdxs.includes(i)) continue;
     const normAnswer = normalize(answers[i].text);
+
+    // 1. Dokładne trafienie w całą odpowiedź (nawet krótką)
     if (normAnswer === normInput) return i;
-    if (normInput.length >= 4 && (normAnswer.includes(normInput) || normInput.includes(normAnswer))) return i;
+
+    if (normInput.length >= 4) {
+        // 2. Jeśli gracz wpisał prefiks CAŁEJ odpowiedzi (np. "schab" dla "schabowy")
+        if (normAnswer.startsWith(normInput)) return i;
+
+        // 3. Jeśli gracz wpisał prefiks KTÓREGOŚ ZE SŁÓW w długiej odpowiedzi (np. "pomidor" w "zupa pomidorowa")
+        const words = normAnswer.split(' ');
+        if (words.some(w => w.startsWith(normInput))) return i;
+    }
+
+    // 4. Tolerancja na literówki (Levenshtein), działa dopiero od 3 wpisanych liter
     if (normInput.length >= 3) {
         const threshold = Math.min(3, Math.max(1, Math.floor(Math.min(normInput.length, normAnswer.length) * 0.3)));
         if (levenshtein(normInput, normAnswer) <= threshold) return i;
+
+        // Tolerancja na literówki wewnątrz pojedynczych słów odpowiedzi wieloczłonowej
+        if (normAnswer.includes(' ')) {
+            const words = normAnswer.split(' ');
+            for (let w of words) {
+                if (w.length >= 4) {
+                    const wordThreshold = Math.min(2, Math.max(1, Math.floor(Math.min(normInput.length, w.length) * 0.3)));
+                    if (levenshtein(normInput, w) <= wordThreshold) return i;
+                }
+            }
+        }
     }
   }
   return -1;
 }
 
-// ZMIANA: Uniwersalna funkcja sortująca graczy uwzględniająca historię najwyższych odpowiedzi jako tie-breaker
 function sortPlayersArray(playersArr) {
     return [...playersArr].sort((a, b) => {
-        // Pierwsze kryterium: zwykłe punkty
         if (b.score !== a.score) return b.score - a.score;
-        
-        // Drugie kryterium (remis punktowy): sprawdzanie odpowiedzi 1000->900->...
         for (let pts = 1000; pts >= 100; pts -= 100) {
             const aC = a.pointsHistory ? (a.pointsHistory[pts] || 0) : 0;
             const bC = b.pointsHistory ? (b.pointsHistory[pts] || 0) : 0;
             if (aC !== bC) return bC - aC;
         }
-        return 0; // Zupełny remis
+        return 0; 
     });
 }
 
@@ -306,7 +326,7 @@ function nextTurn() {
   gameState.currentTurnIndex++;
   if (gameState.currentRound === 11) {
     if (gameState.currentTurnIndex >= 6 || gameState.roundData.revealedAnswers.length >= 10) {
-        endRound11(); // Koniec R11 - odpalamy mowy!
+        endRound11();
     }
     else { broadcastState(); startTurnTimer(); }
   } else {
@@ -490,12 +510,8 @@ function startNextRound() {
   const qIndex = gameState.currentRound - 1;
   const question = gameState.questions[qIndex] || gameState.questions[0];
   
-  gameState.roundOrder = Object.values(gameState.players)
-    .map(p => p.name);
-
-  // Używamy nowej, bezpiecznej metody sortowania w oparciu o punkty za najlepsze strzały
   gameState.roundOrder = sortPlayersArray(Object.values(gameState.players))
-    .reverse() // SortPlayerArray daje top na poczatku, a odwrócenie daje od najgorszego (żeby zaczynał odpowiadać jako pierwszy w turach)
+    .reverse() 
     .map(p => p.name);
 
   gameState.currentTurnIndex = 0;
@@ -506,7 +522,6 @@ function startNextRound() {
 }
 
 function setupRound11() {
-  // Używamy ulepszonego sortowania z tie-breakerami punktowymi
   const sorted = sortPlayersArray(Object.values(gameState.players));
   gameState.top2 = sorted.slice(0, 2).map(p => p.name);
   
@@ -516,7 +531,6 @@ function setupRound11() {
   const qIndex = 10;
   const question = gameState.questions[qIndex];
 
-  // Starter to ten, kto miał MNIEJ punktów przed finałem (lub przegrał na tie-breakerze)
   const starter = gameState.top2[1];
   const second = gameState.top2[0];
   
@@ -528,11 +542,9 @@ function setupRound11() {
   startTurnTimer();
 }
 
-// ZMIANA: Obsługa fazy mów (wyświetlanie specjalnego ekranu na froncie)
 function endRound11() {
   gameState.phase = 'speeches';
   
-  // Zaczyna ten, który zdobył lepszy wynik ogólny
   const sortedFinalists = sortPlayersArray([gameState.players[gameState.top2[0]], gameState.players[gameState.top2[1]]]);
   const firstSpeaker = sortedFinalists[0].name;
   
@@ -583,7 +595,6 @@ function startFinalVoting() {
   }, 1000);
 }
 
-// ZMIANA: Rozstrzyganie głosowania finałowego, w tym rozwiązywanie remisów na niekorzyść gracza z mniejszą pulą punktów
 function resolveFinalVoting() {
   if (gameState.phase !== 'finalVoting') return;
   clearInterval(gameState.votingInterval);
@@ -591,7 +602,6 @@ function resolveFinalVoting() {
   gameState.endReason = 'normal_end'; 
   
   const tally = {};
-  // Zapewniamy, że każdy z finałowej dwójki ma min. 0 by wyświetlić w interfejsie
   gameState.top2.forEach(name => tally[name] = 0); 
   
   Object.values(gameState.votes).forEach(vName => {
@@ -602,16 +612,13 @@ function resolveFinalVoting() {
   const p1 = gameState.top2[0];
   const p2 = gameState.top2[1];
 
-  // Jeśli ilość głosów jest inna:
   if (tally[p1] > tally[p2]) {
       accusedName = p1;
   } else if (tally[p2] > tally[p1]) {
       accusedName = p2;
   } else {
-      // Remis! Sprawdzamy, kto ma MNIEJ punktów ogólnych (ten, kto był "gorszy", zostaje oskarżony)
-      // Nasza nowa funkcja sortPlayersArray ustawia nam lepszego gracza na index 0, a słabszego na 1
       const sortedFinalists = sortPlayersArray([gameState.players[p1], gameState.players[p2]]);
-      accusedName = sortedFinalists[1].name; // Słabszy przegrywa remis
+      accusedName = sortedFinalists[1].name; 
   }
 
   gameState.finalVotes = gameState.votes;
@@ -651,7 +658,6 @@ io.on('connection', (socket) => {
     } else {
       if (gameState.phase !== 'lobby') { socket.emit('error', 'Gra już trwa.'); return; }
       if (Object.keys(gameState.players).length >= 7) { socket.emit('error', 'Maksymalna liczba graczy osiągnięta.'); return; }
-      // Dodano słownik pointsHistory
       gameState.players[normName] = { name: normName, socketId: socket.id, score: 0, isLiar: false, connected: true, wrongAnswers: 0, pointsHistory: {} };
       broadcastState();
     }
@@ -667,7 +673,7 @@ io.on('connection', (socket) => {
     if (socket.id !== gameState.adminSocketId) return;
     clearTransitions();
     clearInterval(gameState.turnInterval);
-    if (gameState.votingInterval) clearInterval(gameState.votingInterval); // Wyczyszczenie timera w mowach/głosowaniu
+    if (gameState.votingInterval) clearInterval(gameState.votingInterval); 
     gameState.phase = 'lobby';
     gameState.currentRound = 0;
     gameState.hiddenLiarPoints = 0;
@@ -710,7 +716,7 @@ io.on('connection', (socket) => {
     if (idx >= 0) {
       const ans = rd.answers[idx];
       player.score += ans.points;
-      player.pointsHistory[ans.points] = (player.pointsHistory[ans.points] || 0) + 1; // ZMIANA: zapamiętywanie trafionych pkt!
+      player.pointsHistory[ans.points] = (player.pointsHistory[ans.points] || 0) + 1; 
       rd.revealedAnswers.push({ index: idx, text: ans.text, points: ans.points, byName: player.name });
       io.emit('timerStart', { duration: 4, phase: 'reveal', correct: true, message: `Trafiłeś! +${ans.points} pkt` });
       gameState.revealTimer = setTimeout(() => nextTurn(), 4000);
@@ -747,7 +753,7 @@ io.on('connection', (socket) => {
     const ans = rd.answers[answerIndex];
     if (player && ans && !rd.revealedAnswers.some(r => r.index === answerIndex)) {
       player.score += ans.points;
-      player.pointsHistory[ans.points] = (player.pointsHistory[ans.points] || 0) + 1; // ZMIANA: admin naprawia = zapamiętujemy punkty w historii
+      player.pointsHistory[ans.points] = (player.pointsHistory[ans.points] || 0) + 1; 
       rd.revealedAnswers.push({ index: answerIndex, text: ans.text, points: ans.points, byName: playerName });
       
       const wIdx = rd.wrongAnswersList.findIndex(w => w.text === gameState.lastWrongAnswer.text && w.byName === playerName);
