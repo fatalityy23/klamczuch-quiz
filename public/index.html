@@ -183,7 +183,6 @@
     </div>
     
     <div style="display:flex; flex-direction:column; gap:20px;">
-      
       <div class="card" id="revealed-answers-card">
         <h3>Odpowiedzi (10)</h3>
         <div id="revealed-answers"></div>
@@ -250,12 +249,17 @@
   </div>
 </div>
 
+<div class="screen" id="screen-pre-final">
+  <div class="card" style="text-align:center; max-width: 800px; margin: 0 auto; width: 100%;">
+    <div id="pre-final-announcement"></div>
+    <div id="pre-final-scoreboard" style="margin-top:30px; text-align:left; font-size: 1.3rem; display: flex; flex-direction: column; gap: 15px;"></div>
+  </div>
+</div>
+
 <div class="screen" id="screen-final">
   <div class="card" style="text-align:center; max-width: 800px; margin: 0 auto; width: 100%;">
     <h1 style="color:var(--yellow); font-size: 3rem;">Koniec Gry!</h1>
-    
     <div id="final-verdict" style="margin: 25px 0;"></div>
-
     <div id="final-scoreboard" style="margin-top:20px; text-align:left; font-size: 1.4rem; display: flex; flex-direction: column; gap: 15px;"></div>
   </div>
 </div>
@@ -267,7 +271,7 @@ let myVote = null;
 let timerInterval = null;
 let currentPhase = ''; 
 let lastSoundTime = 0; 
-let isGamePaused = false; // ZMIANA: Globalna flaga wstrzymująca tykanie u gracza
+let isGamePaused = false; 
 
 let isMuted = localStorage.getItem('kq_muted') === 'true';
 let globalVolume = localStorage.getItem('kq_volume') ? parseFloat(localStorage.getItem('kq_volume')) : 0.5;
@@ -365,7 +369,6 @@ socket.on('globalCountdown', ({ timeLeft }) => {
 socket.on('state', s => {
   if (s.myName) myName = s.myName;
   
-  // Przechwycenie pauzy do globalnej flagi na kliencie
   isGamePaused = s.isPaused; 
   document.getElementById('pause-overlay').style.display = s.isPaused ? 'flex' : 'none';
 
@@ -465,6 +468,18 @@ socket.on('state', s => {
       };
       grid.appendChild(card);
     });
+    
+    const abstainCard = document.createElement('div');
+    abstainCard.className = 'vote-card' + (myVote === 'ABSTAIN' ? ' selected' : '');
+    abstainCard.style.borderColor = 'var(--muted)';
+    abstainCard.innerHTML = `<strong style="color:var(--muted)">Wstrzymuję się</strong>`;
+    abstainCard.onclick = () => {
+        myVote = 'ABSTAIN';
+        socket.emit('vote', { votedName: 'ABSTAIN' });
+        document.querySelectorAll('.vote-card').forEach(c => c.classList.remove('selected'));
+        abstainCard.classList.add('selected');
+    };
+    grid.appendChild(abstainCard);
 
     const votedList = document.getElementById('voted-players-list');
     votedList.innerHTML = '';
@@ -480,13 +495,22 @@ socket.on('state', s => {
   if (s.phase === 'votingResults') {
     showScreen('screen-voting-results');
     
-    // ZMIANA: Ukrywanie tożsamości kłamczucha jeśli mu się upiekło
     const latestVerdict = s.liarHistory[s.liarHistory.length - 1];
     if (latestVerdict && latestVerdict.round === s.currentRound) {
         const verdictEl = document.getElementById('voting-verdict');
         if (latestVerdict.caught) {
+            
+            // ZMIANA: Pokazujemy piękny komunikat jeśli zdobył w tle punkty
+            let recoveredHtml = '';
+            if (s.lastRecoveredPoints && s.lastRecoveredPoints > 0) {
+                recoveredHtml = `<div style="background:rgba(255,215,0,0.15); border:2px solid var(--yellow); padding:10px; border-radius:8px; margin-top:15px; box-shadow: 0 0 15px rgba(255,215,0,0.4);">
+                                   <strong style="color:var(--yellow); font-size:1.3rem;">💰 Kłamczuch rozbija bank! Za wcześniejsze mylne oskarżenia tłumu kłamczuch zgarnia ukryte +${s.lastRecoveredPoints} pkt!</strong>
+                                 </div>`;
+            }
+            
             verdictEl.innerHTML = `<h3 style="color:var(--green); margin:0; font-size:1.6rem;">🚨 Kłamczuch został złapany!</h3>
-                                   <p style="font-size:1.2rem; margin-top:5px;">Kłamczuchem był gracz: <strong>${latestVerdict.liarName}</strong>. Wybrany zostanie nowy kłamczuch.</p>`;
+                                   <p style="font-size:1.2rem; margin-top:5px;">Kłamczuchem był gracz: <strong>${latestVerdict.liarName}</strong>.</p>
+                                   ${recoveredHtml}`;
             verdictEl.style.borderColor = 'var(--green)';
         } else {
             verdictEl.innerHTML = `<h3 style="color:var(--accent); margin:0; font-size:1.6rem;">💨 Nie wykryto kłamczucha!</h3>`;
@@ -506,11 +530,16 @@ socket.on('state', s => {
       Object.entries(s.votes).forEach(([voter, votedFor]) => {
         tally[votedFor] = (tally[votedFor] || 0) + 1; 
         
+        let votedText = votedFor === 'ABSTAIN' ? '<span style="color:var(--muted)">Wstrzymał się</span>' : `<strong>${votedFor}</strong>`;
+        
         const change = s.lastVotingChanges[voter] || 0;
-        const color = change >= 0 ? 'var(--green)' : 'var(--accent)';
+        let color = 'var(--muted)';
+        if (change > 0) color = 'var(--green)';
+        else if (change < 0) color = 'var(--accent)';
+        
         list.innerHTML += `
           <div class="vote-result-row">
-            <span><strong>${voter}</strong> → <strong>${votedFor}</strong></span>
+            <span><strong>${voter}</strong> → ${votedText}</span>
             <span style="color:${color}; font-weight:800">${change > 0 ? '+' : ''}${change} pkt</span>
           </div>`;
       });
@@ -522,16 +551,38 @@ socket.on('state', s => {
             let textGlos = 'głosów';
             if (count === 1) textGlos = 'głos';
             else if (count > 1 && count < 5) textGlos = 'głosy';
+            
+            let displayName = name === 'ABSTAIN' ? '<span style="color:var(--muted)">Wstrzymali się</span>' : `<strong>${name}</strong>`;
 
             tallyList.innerHTML += `
               <div class="vote-result-row" style="background: rgba(255,42,95,0.1); border-left: 4px solid var(--accent); justify-content: space-between;">
-                <span style="font-size:1.3rem;"><strong>${name}</strong></span>
+                <span style="font-size:1.3rem;">${displayName}</span>
                 <span style="color:var(--yellow); font-weight:800; font-size:1.3rem;">${count} ${textGlos}</span>
               </div>`;
         });
     } else {
         tallyList.innerHTML = `<div style="text-align:center; color:var(--muted); padding:10px;">Brak oddanych głosów</div>`;
     }
+  }
+
+  // ZMIANA: EKRAN PRZEDFINAŁOWY WYŚWIETLAJĄCY KTO PRZESZEDŁ
+  if (s.phase === 'preFinal') {
+    showScreen('screen-pre-final');
+    // Sortujemy graczy żeby wyciągnąć 2 z najwyższym wynikiem, po wszystkich roszadach.
+    const sorted = [...s.players].sort((a,b) => b.score - a.score);
+    const top2 = sorted.slice(0,2);
+    
+    document.getElementById('pre-final-announcement').innerHTML = `
+        <h2 style="color:var(--yellow); font-size: 2.5rem; margin-bottom: 5px;">Koniec Rundy 10!</h2>
+        <h1 style="color:var(--accent); font-size: 3.5rem; margin-bottom: 20px;">Wielki Finał</h1>
+        <p style="font-size: 1.5rem; color: var(--text);">Do ostatecznego starcia wchodzą:</p>
+        <div style="font-size: 3rem; font-weight: 800; color: var(--green); margin: 15px 0;">
+            ${top2[0]?.name || '?'} <span style="color:var(--muted); font-size:1.5rem;">vs</span> ${top2[1]?.name || '?'}
+        </div>
+        <p style="font-size: 1.2rem; color: var(--muted); margin-top:15px;">Uwaga! Został wśród nich wylosowany i ukryty nowy Kłamczuch...</p>
+    `;
+    
+    renderScoreboard('pre-final-scoreboard', s.players);
   }
 
   if (s.phase === 'finalSummary') {
@@ -543,7 +594,7 @@ socket.on('state', s => {
         if (latestVerdict.caught) {
             finalVerdictEl.innerHTML = `<h3 style="color:var(--green); font-size: 1.8rem;">🚨 Kłamczuch (${latestVerdict.liarName}) został ZŁAPANY!</h3>`;
         } else {
-            finalVerdictEl.innerHTML = `<h3 style="color:var(--accent); font-size: 1.8rem;">💨 Kłamczuch WYGRAŁ i wymknął się!</h3>`;
+            finalVerdictEl.innerHTML = `<h3 style="color:var(--accent); font-size: 1.8rem;">💨 Kłamczuch (${latestVerdict.liarName}) WYGRAŁ i wymknął się!</h3>`;
         }
     }
 
@@ -591,7 +642,6 @@ socket.on('timerStart', ({ duration, phase, correct, message }) => {
     revMsg.style.color = correct ? 'var(--green)' : 'var(--accent)';
     document.getElementById('answer-section').style.display = 'none';
     
-    // ZMIANA: Twardy i jeszcze pewniejszy restryktor dla plików audio (3.5s cooldown + wymuszone wstrzymanie poprzedniego)
     const now = Date.now();
     if (now - lastSoundTime > 3500) {
         lastSoundTime = now;
@@ -616,7 +666,7 @@ socket.on('timerStart', ({ duration, phase, correct, message }) => {
   bar.style.width = '100%';
 
   timerInterval = setInterval(() => {
-    if (isGamePaused) return; // ZMIANA: Zamrażanie paska na kliencie podczas pauzy!
+    if (isGamePaused) return; 
 
     t--; 
     count.textContent = t + 's';

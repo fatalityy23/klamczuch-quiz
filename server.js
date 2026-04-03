@@ -30,8 +30,8 @@ let gameState = {
   votingInterval: null,
   roundOrder: [],
   currentTurnIndex: 0,
-  turnInterval: null, // ZMIANA: pętla czasu dla tury
-  turnTimeLeft: 0,    // ZMIANA: pamięć ile zostało
+  turnInterval: null,
+  turnTimeLeft: 0,
   revealTimer: null,
   usedQuestions: [],
   liarHistory: [],
@@ -41,7 +41,9 @@ let gameState = {
   speechPlayerName: null,
   isPaused: false,
   lastVotingChanges: {},
-  isAnswerLocked: false
+  isAnswerLocked: false,
+  hiddenLiarPoints: 0,     // ZMIANA: Ukryta pula punktów dla kłamczucha
+  lastRecoveredPoints: 0   // ZMIANA: Informacja o tym, ile punktów odzyskał
 };
 
 let globalTransitionInterval = null;
@@ -56,7 +58,7 @@ function runTransition(seconds, callback) {
   let t = seconds;
   io.emit('globalCountdown', { timeLeft: t });
   globalTransitionInterval = setInterval(() => {
-    if (gameState.isPaused) return; // Zamraża w czasie pauzy
+    if (gameState.isPaused) return;
     t--;
     if (t > 0) {
       io.emit('globalCountdown', { timeLeft: t });
@@ -178,7 +180,8 @@ function broadcastState() {
     totalRounds: gameState.totalRounds,
     liarHistory: gameState.liarHistory,
     isPaused: gameState.isPaused,
-    lastVotingChanges: gameState.lastVotingChanges
+    lastVotingChanges: gameState.lastVotingChanges,
+    lastRecoveredPoints: gameState.lastRecoveredPoints // ZMIANA: Wysyłanie info o odzyskanych pkt
   };
 
   if (gameState.roundData) {
@@ -196,7 +199,7 @@ function broadcastState() {
     base.allAnswers = gameState.roundData.answers;
   }
 
-  if (['voting', 'votingResults', 'finalVoting'].includes(gameState.phase)) {
+  if (['voting', 'votingResults', 'preFinal', 'finalVoting'].includes(gameState.phase)) {
     base.votes = gameState.votes;
     base.votingTimeLeft = gameState.votingTimeLeft;
   }
@@ -240,9 +243,8 @@ function startTurnTimer() {
   gameState.turnTimeLeft = gameState.currentTurnIndex === 0 ? 35 : 25;
   io.emit('timerStart', { duration: gameState.turnTimeLeft, phase: 'answer' });
   
-  // ZMIANA: Zastąpiono setTimeout solidnym setInterval z uwzględnieniem pauzy
   gameState.turnInterval = setInterval(() => {
-    if (gameState.isPaused) return; // Zatrzymuje spadek czasu
+    if (gameState.isPaused) return; 
     gameState.turnTimeLeft--;
     if (gameState.turnTimeLeft <= 0) {
       clearInterval(gameState.turnInterval);
@@ -284,9 +286,8 @@ function nextTurn() {
 function startRoundSummary() {
   gameState.phase = 'roundSummary';
   broadcastState();
-  clearTransitions(); // Ukrywamy pasek globalnego czasu!
+  clearTransitions(); 
   
-  // ZMIANA: Ciche odliczanie w tle, zatrzymywane w razie pauzy
   let ticks = 3;
   function hiddenTick() {
      if (gameState.isPaused) { setTimeout(hiddenTick, 1000); return; }
@@ -343,13 +344,18 @@ function startVoting() {
   }, 1000);
 }
 
+// ZMIANA: Pełna logika ukrytych punktów i karania za błędy
 function resolveVoting() {
   if (gameState.phase !== 'voting') return;
   clearInterval(gameState.votingInterval);
   gameState.phase = 'votingResults';
 
   const tally = {};
-  Object.values(gameState.votes).forEach(vName => { tally[vName] = (tally[vName] || 0) + 1; });
+  Object.values(gameState.votes).forEach(vName => {
+    if (vName !== 'ABSTAIN') {
+        tally[vName] = (tally[vName] || 0) + 1; 
+    }
+  });
 
   let maxVotes = 0, accusedName = null;
   for (const [name, count] of Object.entries(tally)) {
@@ -358,27 +364,50 @@ function resolveVoting() {
 
   const changes = {};
   let liarCaught = (accusedName === gameState.liarName && maxVotes >= 3);
+  let innocentCaught = (accusedName !== null && accusedName !== gameState.liarName && accusedName !== 'ABSTAIN' && maxVotes >= 3);
   
+  let recovered = 0;
+
   if (liarCaught) {
     if (gameState.players[gameState.liarName]) {
+        // Kłamczuch traci za wpadkę
         gameState.players[gameState.liarName].score = Math.max(0, gameState.players[gameState.liarName].score - 300);
         changes[gameState.liarName] = -300;
+
+        // Jeśli kłamczuch nabił ukryte punkty, odbiera je teraz
+        if (gameState.hiddenLiarPoints > 0) {
+            gameState.players[gameState.liarName].score += gameState.hiddenLiarPoints;
+            recovered = gameState.hiddenLiarPoints;
+        }
     }
+    
+    // Głosujący na kłamczucha zyskują punkty
+    Object.entries(gameState.votes).forEach(([voterName, votedFor]) => {
+      if (votedFor === gameState.liarName && voterName !== gameState.liarName) {
+          if(gameState.players[voterName]) {
+              gameState.players[voterName].score += 500;
+              changes[voterName] = 500;
+          }
+      }
+    });
+
+    gameState.hiddenLiarPoints = 0; // Zerujemy pulę, bo kłamczuch został rozliczony
+
+  } else if (innocentCaught) {
+    // Tłum oskarża niewinnego! Głosujący tracą punkty
+    Object.entries(gameState.votes).forEach(([voterName, votedFor]) => {
+      if (votedFor === accusedName) {
+          if(gameState.players[voterName]) {
+              gameState.players[voterName].score = Math.max(0, gameState.players[voterName].score - 500);
+              changes[voterName] = -500;
+          }
+      }
+    });
+    // Kłamczuch zgarnia 1000 punktów do ukrytej puli
+    gameState.hiddenLiarPoints += 1000;
   }
 
-  Object.entries(gameState.votes).forEach(([voterName, votedFor]) => {
-    if (voterName === gameState.liarName) return; 
-    const p = gameState.players[voterName];
-    if (!p) return;
-    if (votedFor === gameState.liarName) {
-        p.score += 300;
-        changes[voterName] = 300;
-    } else {
-        p.score = Math.max(0, p.score - 100);
-        changes[voterName] = -100;
-    }
-  });
-
+  gameState.lastRecoveredPoints = recovered;
   gameState.lastVotingChanges = changes;
   gameState.liarHistory.push({ round: gameState.currentRound, liarName: gameState.liarName, caught: liarCaught, accusedName: accusedName || 'Brak' });
 
@@ -404,6 +433,7 @@ function pickNewLiar(excludeName, pool) {
 function startNextRound() {
   clearTransitions();
   if (gameState.currentRound >= gameState.totalRounds) return;
+  
   gameState.currentRound++;
   gameState.lastVotingChanges = {};
   Object.values(gameState.players).forEach(p => p.wrongAnswers = 0);
@@ -411,10 +441,16 @@ function startNextRound() {
   if (gameState.currentRound === 1) {
     Object.values(gameState.players).forEach(p => p.isLiar = false);
     gameState.liarName = pickNewLiar(null);
+    gameState.hiddenLiarPoints = 0;
   }
 
+  // ZMIANA: Ekran Przedfinałowy ładuje się ZAMIAST bezpośredniego startu rundy 11
   if (gameState.currentRound === 11) {
-    setupRound11();
+    gameState.phase = 'preFinal';
+    broadcastState();
+    runTransition(12, () => {
+        setupRound11();
+    });
     return;
   }
 
@@ -433,9 +469,11 @@ function startNextRound() {
 }
 
 function setupRound11() {
+  // Ponieważ w preFinal wszystkie punkty są już zaktualizowane, teraz bezpiecznie wybieramy top2
   const sorted = Object.values(gameState.players).sort((a, b) => b.score - a.score);
   gameState.top2 = sorted.slice(0, 2).map(p => p.name);
   
+  // Oczyszczamy role z całej gry i losujemy NA NOWO, ale tylko spomiędzy dwójki finalistów
   Object.values(gameState.players).forEach(p => p.isLiar = false);
   gameState.liarName = pickNewLiar(null, gameState.top2);
 
@@ -507,7 +545,9 @@ function resolveFinalVoting() {
   gameState.phase = 'finalSummary';
   
   const tally = {};
-  Object.values(gameState.votes).forEach(vName => { tally[vName] = (tally[vName] || 0) + 1; });
+  Object.values(gameState.votes).forEach(vName => {
+    if(vName !== 'ABSTAIN') tally[vName] = (tally[vName] || 0) + 1; 
+  });
   let maxVotes = 0, accusedName = null;
   for (const [name, count] of Object.entries(tally)) {
     if (count > maxVotes) { maxVotes = count; accusedName = name; }
@@ -555,7 +595,6 @@ io.on('connection', (socket) => {
     if (socket.id !== gameState.adminSocketId) return; 
     gameState.isPaused = !gameState.isPaused;
     broadcastState();
-    // Odliczanie (setInterval) i timery przejść (runTransition) same ogarną fakt, że jest od-pauzowane
   });
 
   socket.on('stopGame', () => {
@@ -564,6 +603,8 @@ io.on('connection', (socket) => {
     clearInterval(gameState.turnInterval);
     gameState.phase = 'lobby';
     gameState.currentRound = 0;
+    gameState.hiddenLiarPoints = 0;
+    gameState.lastRecoveredPoints = 0;
     gameState.isPaused = false;
     Object.values(gameState.players).forEach(p => { p.score = 0; p.isLiar = false; p.wrongAnswers = 0; });
     broadcastState();
@@ -574,7 +615,6 @@ io.on('connection', (socket) => {
     if (Object.keys(gameState.players).length < 2) { socket.emit('error', 'Potrzeba co najmniej 2 graczy.'); return; }
     
     gameState.questions = getQuestions(questionSet);
-    
     gameState.currentRound = 0;
     gameState.liarHistory = [];
     startNextRound();
