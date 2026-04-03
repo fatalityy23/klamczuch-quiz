@@ -211,10 +211,22 @@
   </div>
 </div>
 
+<div class="screen" id="screen-speeches">
+  <div class="card" style="text-align:center; max-width:800px; margin:0 auto; width:100%;">
+    <h1 style="color:var(--accent); margin-bottom:15px;">Czas na obronę!</h1>
+    <p style="font-size:1.3rem; color:var(--muted);">Szanowne Jury słucha uważnie. Tylko jeden z finalistów mówi prawdę...</p>
+    <div style="margin:40px 0;">
+      <span style="font-size:2rem;">Przemawia: </span><br/>
+      <strong id="speech-player" style="font-size:3.5rem; color:var(--green); display:block; margin-top:10px;"></strong>
+    </div>
+    <div id="speech-timer" style="font-size:6rem; color:var(--yellow); font-weight:800;">45</div>
+  </div>
+</div>
+
 <div class="screen" id="screen-voting">
   <div class="card" style="text-align:center; max-width: 1000px; margin: 0 auto; width: 100%;">
-    <h2>🗳️ Głosowanie</h2>
-    <p style="color:var(--muted); font-size:1.3rem; margin-top:-5px; margin-bottom:20px;">Wskaż kłamczucha</p>
+    <h2 id="voting-title">🗳️ Głosowanie</h2>
+    <p id="voting-subtitle" style="color:var(--muted); font-size:1.3rem; margin-top:-5px; margin-bottom:20px;">Wskaż kłamczucha</p>
     <div id="vote-timer" style="font-size:4rem; color:var(--yellow); font-weight:800;">60</div>
     <div id="voting-grid" style="margin-top:30px; margin-bottom:30px;"></div>
     
@@ -235,7 +247,6 @@
         <h3 style="color:var(--blue); text-align:center; margin-bottom:15px;">Kto na kogo głosował?</h3>
         <div id="voting-results-list" style="font-size: 1.1rem; display: flex; flex-direction: column; gap: 8px;"></div>
       </div>
-      
       <div style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 12px; border: 1px solid var(--accent);">
         <h3 style="color:var(--yellow); text-align:center; margin-bottom:15px;">Podsumowanie głosów</h3>
         <div id="voting-tally-list" style="font-size: 1.2rem; display: flex; flex-direction: column; gap: 10px;"></div>
@@ -252,10 +263,14 @@
 </div>
 
 <div class="screen" id="screen-final">
-  <div class="card" style="text-align:center; max-width: 800px; margin: 0 auto; width: 100%;">
+  <div class="card" style="text-align:center; max-width: 1000px; margin: 0 auto; width: 100%;">
     <h1 style="color:var(--yellow); font-size: 3rem;">Koniec Gry!</h1>
     <div id="final-verdict" style="margin: 25px 0;"></div>
-    <div id="final-scoreboard" style="margin-top:20px; text-align:left; font-size: 1.4rem; display: flex; flex-direction: column; gap: 15px;"></div>
+    
+    <div id="final-voting-details" style="margin-top:20px;"></div>
+
+    <h3 style="color:var(--blue); margin-top:30px; text-align:left;">Ostateczny ranking punktowy:</h3>
+    <div id="final-scoreboard" style="margin-top:10px; text-align:left; font-size: 1.4rem; display: flex; flex-direction: column; gap: 15px;"></div>
   </div>
 </div>
 
@@ -440,6 +455,19 @@ socket.on('state', s => {
     renderScoreboard('scoreboard', s.players);
   }
 
+  // ZMIANA: Obsługa nowego ekranu dla Mów Obroniczych (speeches)
+  if (s.phase === 'speeches') {
+    showScreen('screen-speeches');
+    const spEl = document.getElementById('speech-player');
+    if (s.speechPlayerName === myName) {
+        spEl.style.color = 'var(--accent)';
+        spEl.textContent = myName + ' (TWOJA KOLEJ!)';
+    } else {
+        spEl.style.color = 'var(--green)';
+        spEl.textContent = s.speechPlayerName;
+    }
+  }
+
   if (s.phase === 'roundSummary') {
     showScreen('screen-round-summary');
     document.getElementById('rs-subtitle').textContent = s.isVotingNext ? "PRZYGOTUJ SIĘ NA GŁOSOWANIE" : "PRZYGOTUJ SIĘ NA KOLEJNĄ RUNDĘ";
@@ -448,9 +476,27 @@ socket.on('state', s => {
 
   if (s.phase === 'voting' || s.phase === 'finalVoting') {
     showScreen('screen-voting');
+    
+    // Zmiana tekstu w zależności od fazy
+    if (s.phase === 'finalVoting') {
+        document.getElementById('voting-title').innerHTML = "⚖️ Sąd Ostateczny!";
+        document.getElementById('voting-subtitle').innerHTML = "Jury decyduje: Kto z tej dwójki mijał się z prawdą?";
+    } else {
+        document.getElementById('voting-title').innerHTML = "🗳️ Głosowanie";
+        document.getElementById('voting-subtitle').innerHTML = "Wskaż kłamczucha";
+    }
+
     const grid = document.getElementById('voting-grid');
     grid.innerHTML = '';
-    let targets = s.players.filter(p => p.name !== myName);
+    
+    let targets = [];
+    if (s.phase === 'finalVoting') {
+        // W finale można głosować tylko na kogoś z TOP2
+        targets = s.players.filter(p => s.top2 && s.top2.includes(p.name) && p.name !== myName);
+    } else {
+        targets = s.players.filter(p => p.name !== myName);
+    }
+
     targets.forEach(p => {
       const card = document.createElement('div');
       card.className = 'vote-card' + (myVote === p.name ? ' selected' : '');
@@ -464,17 +510,20 @@ socket.on('state', s => {
       grid.appendChild(card);
     });
     
-    const abstainCard = document.createElement('div');
-    abstainCard.className = 'vote-card' + (myVote === 'ABSTAIN' ? ' selected' : '');
-    abstainCard.style.borderColor = 'var(--muted)';
-    abstainCard.innerHTML = `<strong style="color:var(--muted)">Wstrzymuję się</strong>`;
-    abstainCard.onclick = () => {
-        myVote = 'ABSTAIN';
-        socket.emit('vote', { votedName: 'ABSTAIN' });
-        document.querySelectorAll('.vote-card').forEach(c => c.classList.remove('selected'));
-        abstainCard.classList.add('selected');
-    };
-    grid.appendChild(abstainCard);
+    // Przycisk "Wstrzymaj się" tylko w normalnych rundach
+    if (s.phase !== 'finalVoting') {
+        const abstainCard = document.createElement('div');
+        abstainCard.className = 'vote-card' + (myVote === 'ABSTAIN' ? ' selected' : '');
+        abstainCard.style.borderColor = 'var(--muted)';
+        abstainCard.innerHTML = `<strong style="color:var(--muted)">Wstrzymuję się</strong>`;
+        abstainCard.onclick = () => {
+            myVote = 'ABSTAIN';
+            socket.emit('vote', { votedName: 'ABSTAIN' });
+            document.querySelectorAll('.vote-card').forEach(c => c.classList.remove('selected'));
+            abstainCard.classList.add('selected');
+        };
+        grid.appendChild(abstainCard);
+    }
 
     const votedList = document.getElementById('voted-players-list');
     votedList.innerHTML = '';
@@ -562,8 +611,8 @@ socket.on('state', s => {
 
   if (s.phase === 'preFinal') {
     showScreen('screen-pre-final');
-    const sorted = [...s.players].sort((a,b) => b.score - a.score);
-    const top2 = sorted.slice(0,2);
+    // Korzystamy już z gotowej kolejności przysłanej z serwera, bo serwer dba o remisy
+    const top2 = [s.players[0], s.players[1]];
     
     document.getElementById('pre-final-announcement').innerHTML = `
         <h2 style="color:var(--yellow); font-size: 2.5rem; margin-bottom: 5px;">Koniec Rundy 10!</h2>
@@ -582,11 +631,11 @@ socket.on('state', s => {
     showScreen('screen-final');
     
     const finalVerdictEl = document.getElementById('final-verdict');
+    const fvDetails = document.getElementById('final-voting-details');
+    fvDetails.innerHTML = ''; 
     
-    // ZMIANA: Obsługa przerwania gry z powodu 2 błędów
     if (s.endReason === 'mistakes') {
-        const sorted = [...s.players].sort((a,b) => b.score - a.score);
-        const winner = sorted[0];
+        const winner = s.players[0]; // Znowu, serwer podaje nam posortowaną tablicę
         finalVerdictEl.innerHTML = `
             <h3 style="color:var(--yellow); font-size: 2.5rem; margin-bottom: 10px;">🏆 Wygrywa: ${winner.name}!</h3>
             <p style="color:var(--muted); font-size: 1.2rem;">Gra zakończona – przeciwnik popełnił 2 błędy.</p>
@@ -595,10 +644,29 @@ socket.on('state', s => {
         const latestVerdict = s.liarHistory[s.liarHistory.length - 1];
         if (latestVerdict && latestVerdict.round === 11) {
             if (latestVerdict.caught) {
-                finalVerdictEl.innerHTML = `<h3 style="color:var(--green); font-size: 1.8rem;">🚨 Kłamczuch (${latestVerdict.liarName}) został ZŁAPANY!</h3>`;
+                finalVerdictEl.innerHTML = `<h3 style="color:var(--green); font-size: 1.8rem;">🚨 Kłamczuch (${latestVerdict.liarName}) został ZŁAPANY! Triumfuje Jury i Prawdomówny.</h3>`;
             } else {
                 finalVerdictEl.innerHTML = `<h3 style="color:var(--accent); font-size: 1.8rem;">💨 Kłamczuch (${latestVerdict.liarName}) WYGRAŁ i wymknął się!</h3>`;
             }
+        }
+
+        // ZMIANA: Tabela głosowania finałowego, żeby było widać kto głosował
+        if (s.finalVotes && s.finalTally) {
+            let detailsHtml = '<h3 style="color:var(--blue); margin-top:30px; margin-bottom:15px; text-align:center;">Kto na kogo głosował w finale?</h3><div class="grid-2col">';
+
+            let listHtml = '<div style="background:rgba(0,0,0,0.2); padding:15px; border-radius:12px; display:flex; flex-direction:column; gap:8px;">';
+            Object.entries(s.finalVotes).forEach(([voter, votedFor]) => {
+                listHtml += `<div class="vote-result-row"><span><strong>${voter}</strong> → <strong>${votedFor}</strong></span></div>`;
+            });
+            listHtml += '</div>';
+
+            let tallyHtml = '<div style="background:rgba(0,0,0,0.2); padding:15px; border-radius:12px; border:1px solid var(--accent); display:flex; flex-direction:column; gap:10px;">';
+            Object.entries(s.finalTally).sort((a,b)=>b[1]-a[1]).forEach(([name, count]) => {
+                tallyHtml += `<div class="vote-result-row" style="background: rgba(255,42,95,0.1); border-left: 4px solid var(--accent); justify-content: space-between;"><span style="font-size:1.3rem;"><strong>${name}</strong></span><span style="color:var(--yellow); font-weight:800; font-size:1.3rem;">${count} głosy</span></div>`;
+            });
+            tallyHtml += '</div>';
+
+            fvDetails.innerHTML = detailsHtml + listHtml + tallyHtml + '</div>';
         }
     }
 
@@ -689,15 +757,20 @@ socket.on('timerStart', ({ duration, phase, correct, message }) => {
   }, 1000);
 });
 
+// ZMIANA: Obsługa timera w nowym ekranie przemówień
 socket.on('votingTimer', ({ timeLeft }) => {
   const el = document.getElementById('vote-timer');
   if(el) el.textContent = timeLeft;
+  
+  const elSpeech = document.getElementById('speech-timer');
+  if(elSpeech) elSpeech.textContent = timeLeft;
 });
 
 function renderScoreboard(elId, players) {
   const el = document.getElementById(elId);
   el.innerHTML = '';
-  [...players].sort((a,b) => b.score - a.score).forEach((p, i) => {
+  // ZMIANA: Pętla nie musi już tu sortować wyników. Są idealnie przysłane i posortowane przez serwer.
+  players.forEach((p, i) => {
     el.innerHTML += `<div class="score-row"><span>${i+1}. ${p.name}</span><strong>${p.score} pkt</strong></div>`;
   });
 }
