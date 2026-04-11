@@ -153,6 +153,20 @@
     <h2>Poczekalnia</h2>
     <div id="lobby-players" style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top: 20px;"></div>
   </div>
+  
+  <div class="card" style="text-align:left; font-size: 0.95rem; margin-top: 10px;">
+    <h3 style="color:var(--accent); text-align:center; margin-bottom:15px;">📜 ZASADY GRY</h3>
+    <ol style="padding-left: 20px; color:var(--muted); display:flex; flex-direction:column; gap:8px;">
+      <li>Na początku gry wybierany jest kłamczuch.</li>
+      <li>Gracze zdobywają punkty poprzez odpowiadanie na pytanie w rundzie - jedno pytanie to tylko jedna odpowiedź na gracza. Kolejność jest losowana, a w kolejnych rundach zaczyna gracz z najmniejszą ilością punktów kończąc na graczu z największą ilością punktów.</li>
+      <li>Odpowiedzi mniej oczywiste są lepiej punktowane.</li>
+      <li>Odpowiedzi są poniekąd subiektywne, odpowiadali ankietowani.</li>
+      <li>Po rundach 2, 4, 6, 8, 9, 10 odbywa się głosowanie na kłamczucha. Jeśli przynajmniej 3 graczy wskaże prawidłową osobę, to każdy dostaje 500 pkt, a w następnej rundzie wybierany jest nowy kłamczuch. Ta sama osoba nie może być kłamczuchem 2 razy z rzędu.</li>
+      <li>Jeśli przynajmniej 3 graczy wskaże niewinną osobę, to każdy z nich traci 500 pkt. Kłamczuch zyskuje wtedy 1000 pkt, które są ukryte do momentu jego zdemaskowania. (Jeżeli kłamczuch będzie jedną z osób głosujących, to w finalnym rozrachunku ma 500 pkt: 1000 pkt - 500 pkt).</li>
+      <li>Gra składa się z 10 rund + 11 rundy finałowej.</li>
+      <li>Do rundy finałowej przechodzi 2 graczy z największą ilością punktów.</li>
+    </ol>
+  </div>
 </div>
 
 <div class="screen" id="screen-game">
@@ -455,7 +469,6 @@ socket.on('state', s => {
     renderScoreboard('scoreboard', s.players);
   }
 
-  // ZMIANA: Obsługa nowego ekranu dla Mów Obroniczych (speeches)
   if (s.phase === 'speeches') {
     showScreen('screen-speeches');
     const spEl = document.getElementById('speech-player');
@@ -477,7 +490,6 @@ socket.on('state', s => {
   if (s.phase === 'voting' || s.phase === 'finalVoting') {
     showScreen('screen-voting');
     
-    // Zmiana tekstu w zależności od fazy
     if (s.phase === 'finalVoting') {
         document.getElementById('voting-title').innerHTML = "⚖️ Sąd Ostateczny!";
         document.getElementById('voting-subtitle').innerHTML = "Jury decyduje: Kto z tej dwójki mijał się z prawdą?";
@@ -491,7 +503,6 @@ socket.on('state', s => {
     
     let targets = [];
     if (s.phase === 'finalVoting') {
-        // W finale można głosować tylko na kogoś z TOP2
         targets = s.players.filter(p => s.top2 && s.top2.includes(p.name) && p.name !== myName);
     } else {
         targets = s.players.filter(p => p.name !== myName);
@@ -510,7 +521,6 @@ socket.on('state', s => {
       grid.appendChild(card);
     });
     
-    // Przycisk "Wstrzymaj się" tylko w normalnych rundach
     if (s.phase !== 'finalVoting') {
         const abstainCard = document.createElement('div');
         abstainCard.className = 'vote-card' + (myVote === 'ABSTAIN' ? ' selected' : '');
@@ -609,9 +619,9 @@ socket.on('state', s => {
     }
   }
 
+  // ZMIANA: EKRAN PRZEDFINAŁOWY WYŚWIETLAJĄCY KTO PRZESZEDŁ Z DODANYMI ZASADAMI
   if (s.phase === 'preFinal') {
     showScreen('screen-pre-final');
-    // Korzystamy już z gotowej kolejności przysłanej z serwera, bo serwer dba o remisy
     const top2 = [s.players[0], s.players[1]];
     
     document.getElementById('pre-final-announcement').innerHTML = `
@@ -621,7 +631,19 @@ socket.on('state', s => {
         <div style="font-size: 3rem; font-weight: 800; color: var(--green); margin: 15px 0;">
             ${top2[0]?.name || '?'} <span style="color:var(--muted); font-size:1.5rem;">vs</span> ${top2[1]?.name || '?'}
         </div>
-        <p style="font-size: 1.2rem; color: var(--muted); margin-top:15px;">Uwaga! Został wśród nich wylosowany i ukryty nowy Kłamczuch...</p>
+        
+        <div style="background: rgba(0,0,0,0.3); padding: 20px; border-radius: 12px; margin-top: 25px; text-align: left; border: 1px solid var(--blue);">
+            <h3 style="color:var(--blue); text-align:center; margin-bottom:15px;">📜 ZASADY FINAŁU</h3>
+            <ol style="padding-left: 20px; color:var(--muted); font-size: 1.1rem; display:flex; flex-direction:column; gap:8px;">
+                <li>Wyświetlane jest jedno pytanie, odpowiada tylko finałowa dwójka.</li>
+                <li>Losowany jest kłamczuch - to wyjątek od wcześniejszej reguły, wcześniejszy kłamczuch nadal może zostać teraz wylosowany.</li>
+                <li>Finaliści muszą odpowiedzieć 3 razy.</li>
+                <li>Dwie pomyłki oznaczają koniec gry i automatyczną przegraną.</li>
+                <li>Po odpowiedziach następuje faza obrony - każdy z finalistów ma swój czas, żeby przekonać pozostałych graczy, że jest niewinny. Zaczyna gracz z największą ilością uzyskanych punktów.</li>
+                <li>Po fazie obrony pozostali gracze decydują kto według nich jest kłamczuchem.<br><strong style="color:var(--text);">Wygrywa gracz, który NIE zostanie wskazany w głosowaniu.</strong></li>
+                <li>W fazie finałowej punkty nie mają już znaczenia - decydują tylko o kolejności obrony.</li>
+            </ol>
+        </div>
     `;
     
     renderScoreboard('pre-final-scoreboard', s.players);
@@ -635,7 +657,7 @@ socket.on('state', s => {
     fvDetails.innerHTML = ''; 
     
     if (s.endReason === 'mistakes') {
-        const winner = s.players[0]; // Znowu, serwer podaje nam posortowaną tablicę
+        const winner = s.players[0]; 
         finalVerdictEl.innerHTML = `
             <h3 style="color:var(--yellow); font-size: 2.5rem; margin-bottom: 10px;">🏆 Wygrywa: ${winner.name}!</h3>
             <p style="color:var(--muted); font-size: 1.2rem;">Gra zakończona – przeciwnik popełnił 2 błędy.</p>
@@ -650,7 +672,6 @@ socket.on('state', s => {
             }
         }
 
-        // ZMIANA: Tabela głosowania finałowego, żeby było widać kto głosował
         if (s.finalVotes && s.finalTally) {
             let detailsHtml = '<h3 style="color:var(--blue); margin-top:30px; margin-bottom:15px; text-align:center;">Kto na kogo głosował w finale?</h3><div class="grid-2col">';
 
@@ -757,7 +778,6 @@ socket.on('timerStart', ({ duration, phase, correct, message }) => {
   }, 1000);
 });
 
-// ZMIANA: Obsługa timera w nowym ekranie przemówień
 socket.on('votingTimer', ({ timeLeft }) => {
   const el = document.getElementById('vote-timer');
   if(el) el.textContent = timeLeft;
@@ -769,7 +789,6 @@ socket.on('votingTimer', ({ timeLeft }) => {
 function renderScoreboard(elId, players) {
   const el = document.getElementById(elId);
   el.innerHTML = '';
-  // ZMIANA: Pętla nie musi już tu sortować wyników. Są idealnie przysłane i posortowane przez serwer.
   players.forEach((p, i) => {
     el.innerHTML += `<div class="score-row"><span>${i+1}. ${p.name}</span><strong>${p.score} pkt</strong></div>`;
   });
