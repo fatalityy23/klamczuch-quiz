@@ -528,7 +528,7 @@ function setupRound11() {
   Object.values(gameState.players).forEach(p => p.isLiar = false);
   gameState.liarName = pickNewLiar(null, gameState.top2);
 
-  const qIndex = 10;
+  const qIndex = 120;
   const question = gameState.questions[qIndex];
 
   const starter = gameState.top2[1];
