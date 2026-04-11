@@ -46,7 +46,8 @@ let gameState = {
   lastRecoveredPoints: 0,
   endReason: null,
   finalVotes: null,   
-  finalTally: null    
+  finalTally: null,
+  rulesUnderstood: {} // ZMIANA: Śledzenie kto odklikał gotowość do finału
 };
 
 let globalTransitionInterval = null;
@@ -157,31 +158,16 @@ function normalize(str) {
   return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();
 }
 
-// ZMIANA: Nowa, bardzo precyzyjna i bezpieczna wersja algorytmu sprawdzania (likwiduje "a", "b", "owiec")
 function matchAnswer(input, answers, revealedIdxs) {
   const normInput = normalize(input);
   for (let i = 0; i < answers.length; i++) {
     if (revealedIdxs.includes(i)) continue;
     const normAnswer = normalize(answers[i].text);
-
-    // 1. Dokładne trafienie w całą odpowiedź (nawet krótką)
     if (normAnswer === normInput) return i;
-
-    if (normInput.length >= 4) {
-        // 2. Jeśli gracz wpisał prefiks CAŁEJ odpowiedzi (np. "schab" dla "schabowy")
-        if (normAnswer.startsWith(normInput)) return i;
-
-        // 3. Jeśli gracz wpisał prefiks KTÓREGOŚ ZE SŁÓW w długiej odpowiedzi (np. "pomidor" w "zupa pomidorowa")
-        const words = normAnswer.split(' ');
-        if (words.some(w => w.startsWith(normInput))) return i;
-    }
-
-    // 4. Tolerancja na literówki (Levenshtein), działa dopiero od 3 wpisanych liter
+    if (normInput.length >= 4 && (normAnswer.startsWith(normInput) || normAnswer.split(' ').some(w => w.startsWith(normInput)))) return i;
     if (normInput.length >= 3) {
         const threshold = Math.min(3, Math.max(1, Math.floor(Math.min(normInput.length, normAnswer.length) * 0.3)));
         if (levenshtein(normInput, normAnswer) <= threshold) return i;
-
-        // Tolerancja na literówki wewnątrz pojedynczych słów odpowiedzi wieloczłonowej
         if (normAnswer.includes(' ')) {
             const words = normAnswer.split(' ');
             for (let w of words) {
@@ -226,7 +212,8 @@ function broadcastState() {
     lastRecoveredPoints: gameState.lastRecoveredPoints,
     endReason: gameState.endReason,
     finalVotes: gameState.finalVotes, 
-    finalTally: gameState.finalTally  
+    finalTally: gameState.finalTally,
+    rulesUnderstood: gameState.rulesUnderstood // Wysyłanie stanu gotowości
   };
 
   if (gameState.roundData) {
@@ -383,7 +370,7 @@ function postRoundRouting() {
 function startVoting() {
   gameState.phase = 'voting';
   gameState.votes = {};
-  gameState.votingTimeLeft = 90;
+  gameState.votingTimeLeft = 60;
   broadcastState();
   if (gameState.votingInterval) clearInterval(gameState.votingInterval);
   gameState.votingInterval = setInterval(() => {
@@ -500,10 +487,9 @@ function startNextRound() {
 
   if (gameState.currentRound === 11) {
     gameState.phase = 'preFinal';
+    gameState.rulesUnderstood = {}; // ZMIANA: Resetujemy potwierdzenia gotowości
     broadcastState();
-    runTransition(12, () => {
-        setupRound11();
-    });
+    // ZMIANA: Usuwamy runTransition, gra czeka aż wszyscy klikną "Zrozumiałem"
     return;
   }
 
@@ -528,7 +514,7 @@ function setupRound11() {
   Object.values(gameState.players).forEach(p => p.isLiar = false);
   gameState.liarName = pickNewLiar(null, gameState.top2);
 
-  const qIndex = 120;
+  const qIndex = 10;
   const question = gameState.questions[qIndex];
 
   const starter = gameState.top2[1];
@@ -680,6 +666,7 @@ io.on('connection', (socket) => {
     gameState.lastRecoveredPoints = 0;
     gameState.endReason = null; 
     gameState.isPaused = false;
+    gameState.rulesUnderstood = {};
     Object.values(gameState.players).forEach(p => { p.score = 0; p.isLiar = false; p.wrongAnswers = 0; p.pointsHistory = {}; });
     broadcastState();
   });
@@ -698,6 +685,23 @@ io.on('connection', (socket) => {
   socket.on('startNextRound', () => {
     if (socket.id !== gameState.adminSocketId) return;
     startNextRound();
+  });
+
+  // ZMIANA: Obsługa przycisku gotowości
+  socket.on('rulesUnderstood', () => {
+    if (gameState.phase !== 'preFinal') return;
+    const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
+    if (!player) return;
+
+    gameState.rulesUnderstood[player.name] = true;
+    broadcastState();
+
+    const expected = Object.values(gameState.players).filter(p => p.connected).length;
+    const currentReady = Object.keys(gameState.rulesUnderstood).filter(n => gameState.players[n] && gameState.players[n].connected).length;
+
+    if (expected > 0 && currentReady >= expected) {
+        setupRound11();
+    }
   });
 
   socket.on('submitAnswer', ({ answer }) => {
@@ -774,9 +778,9 @@ io.on('connection', (socket) => {
     broadcastState();
 
     const expectedVotes = Object.values(gameState.players).filter(p => p.connected).length;
-    const currentVotes = Object.keys(gameState.votes).length;
+    const currentVotes = Object.keys(gameState.votes).filter(n => gameState.players[n] && gameState.players[n].connected).length;
 
-    if (currentVotes >= expectedVotes) {
+    if (currentVotes >= expectedVotes && expectedVotes > 0) {
        if (gameState.phase === 'voting') resolveVoting();
        else if (gameState.phase === 'finalVoting') resolveFinalVoting();
     }
@@ -785,7 +789,25 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     if (gameState.adminSocketId === socket.id) gameState.adminSocketId = null;
     const p = Object.values(gameState.players).find(x => x.socketId === socket.id);
-    if (p) { p.connected = false; broadcastState(); }
+    if (p) { 
+        p.connected = false; 
+        broadcastState(); 
+        
+        // ZMIANA: Zabezpieczenie przed zablokowaniem gry po wyjściu gracza (np. podczas czekania na przycisk)
+        const expected = Object.values(gameState.players).filter(pl => pl.connected).length;
+        if (expected > 0) {
+            if (gameState.phase === 'preFinal') {
+                const currentReady = Object.keys(gameState.rulesUnderstood).filter(n => gameState.players[n] && gameState.players[n].connected).length;
+                if (currentReady >= expected) setupRound11();
+            } else if (['voting', 'finalVoting'].includes(gameState.phase)) {
+                const currentVotes = Object.keys(gameState.votes).filter(n => gameState.players[n] && gameState.players[n].connected).length;
+                if (currentVotes >= expected) {
+                    if (gameState.phase === 'voting') resolveVoting();
+                    else resolveFinalVoting();
+                }
+            }
+        }
+    }
   });
 });
 

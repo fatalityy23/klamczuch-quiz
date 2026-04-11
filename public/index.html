@@ -155,14 +155,15 @@
   </div>
   
   <div class="card" style="text-align:left; font-size: 0.95rem; margin-top: 10px;">
-    <h3 style="color:var(--accent); text-align:center; margin-bottom:15px;">📜 ZASADY GRY</h3>
+    <h3 style="color:var(--accent); text-align:center; margin-bottom:15px;">📜 ZASADY</h3>
     <ol style="padding-left: 20px; color:var(--muted); display:flex; flex-direction:column; gap:8px;">
-      <li>Na początku gry wybierany jest kłamczuch.</li>
+      <li>Na początku gry wybierany jest kłamczuch. Będzie on widział wszystkie odpowiedzi na dane pytanie w rundzie.</li>
       <li>Gracze zdobywają punkty poprzez odpowiadanie na pytanie w rundzie - jedno pytanie to tylko jedna odpowiedź na gracza. Kolejność jest losowana, a w kolejnych rundach zaczyna gracz z najmniejszą ilością punktów kończąc na graczu z największą ilością punktów.</li>
-      <li>Odpowiedzi mniej oczywiste są lepiej punktowane.</li>
+      <li>Odpowiedzi mniej oczywiste są lepiej punktowane - od 100 do 1000 punktów</li>
       <li>Odpowiedzi są poniekąd subiektywne, odpowiadali ankietowani.</li>
-      <li>Po rundach 2, 4, 6, 8, 9, 10 odbywa się głosowanie na kłamczucha. Jeśli przynajmniej 3 graczy wskaże prawidłową osobę, to każdy dostaje 500 pkt, a w następnej rundzie wybierany jest nowy kłamczuch. Ta sama osoba nie może być kłamczuchem 2 razy z rzędu.</li>
-      <li>Jeśli przynajmniej 3 graczy wskaże niewinną osobę, to każdy z nich traci 500 pkt. Kłamczuch zyskuje wtedy 1000 pkt, które są ukryte do momentu jego zdemaskowania. (Jeżeli kłamczuch będzie jedną z osób głosujących, to w finalnym rozrachunku ma 500 pkt: 1000 pkt - 500 pkt).</li>
+      <li>Po rundach 2,4,6,8,9,10 odbywa się głosowanie na kłamczucha, jeśli przynajmniej 3 graczy wskaże prawidłową osobę to każdy dostaje 500 pkt a w następnej rundzie wybierany jest nowy kłamczuch. Ta sama osoba nie może być kłamczuchem 2 razy z rzędu.</li>
+      <li>Jeśli przynajmniej 3 graczy wskaże niewinną osobę to każdy z nich traci 500 pkt. Kłamczuch zyskuje wtedy 1000 pkt, które są ukryte do momentu jego zdemaskowania. Jeżeli kłamczuch będzie jedną z osób głosujących to w finalnym rozrachunku ma 500 pkt (1000 pkt - 500 pkt).</li>
+      <li>W przypadku remisu w głosowaniu i sytuacji gdzie dwóch graczy otrzyma po 3 głosy nic się nie dzieje, kłamczuch nie zostaje wykryty, nikt nie zyskuje i nie traci punktów</li>
       <li>Gra składa się z 10 rund + 11 rundy finałowej.</li>
       <li>Do rundy finałowej przechodzi 2 graczy z największą ilością punktów.</li>
     </ol>
@@ -280,9 +281,7 @@
   <div class="card" style="text-align:center; max-width: 1000px; margin: 0 auto; width: 100%;">
     <h1 style="color:var(--yellow); font-size: 3rem;">Koniec Gry!</h1>
     <div id="final-verdict" style="margin: 25px 0;"></div>
-    
     <div id="final-voting-details" style="margin-top:20px;"></div>
-
     <h3 style="color:var(--blue); margin-top:30px; text-align:left;">Ostateczny ranking punktowy:</h3>
     <div id="final-scoreboard" style="margin-top:10px; text-align:left; font-size: 1.4rem; display: flex; flex-direction: column; gap: 15px;"></div>
   </div>
@@ -619,11 +618,22 @@ socket.on('state', s => {
     }
   }
 
-  // ZMIANA: EKRAN PRZEDFINAŁOWY WYŚWIETLAJĄCY KTO PRZESZEDŁ Z DODANYMI ZASADAMI
   if (s.phase === 'preFinal') {
     showScreen('screen-pre-final');
     const top2 = [s.players[0], s.players[1]];
     
+    let understoodHtml = '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:20px;">';
+    s.players.forEach(p => {
+        const isReady = s.rulesUnderstood && s.rulesUnderstood[p.name];
+        understoodHtml += `
+          <span class="player-chip" style="background:${isReady ? 'rgba(0, 230, 118, 0.2)' : 'var(--accent2)'}; border: 1px solid ${isReady ? 'var(--green)' : 'rgba(255,255,255,0.1)'}">
+            ${p.name} ${isReady ? '✅' : '⏳'}
+          </span>`;
+    });
+    understoodHtml += '</div>';
+
+    const iAmReady = s.rulesUnderstood && s.rulesUnderstood[myName];
+
     document.getElementById('pre-final-announcement').innerHTML = `
         <h2 style="color:var(--yellow); font-size: 2.5rem; margin-bottom: 5px;">Koniec Rundy 10!</h2>
         <h1 style="color:var(--accent); font-size: 3.5rem; margin-bottom: 20px;">Wielki Finał</h1>
@@ -631,19 +641,28 @@ socket.on('state', s => {
         <div style="font-size: 3rem; font-weight: 800; color: var(--green); margin: 15px 0;">
             ${top2[0]?.name || '?'} <span style="color:var(--muted); font-size:1.5rem;">vs</span> ${top2[1]?.name || '?'}
         </div>
-        
+        <p style="font-size: 1.2rem; color: var(--muted); margin-top:15px;">Uwaga! Został wśród nich wylosowany i ukryty nowy Kłamczuch...</p>
+
         <div style="background: rgba(0,0,0,0.3); padding: 20px; border-radius: 12px; margin-top: 25px; text-align: left; border: 1px solid var(--blue);">
             <h3 style="color:var(--blue); text-align:center; margin-bottom:15px;">📜 ZASADY FINAŁU</h3>
             <ol style="padding-left: 20px; color:var(--muted); font-size: 1.1rem; display:flex; flex-direction:column; gap:8px;">
-                <li>Wyświetlane jest jedno pytanie, odpowiada tylko finałowa dwójka.</li>
-                <li>Losowany jest kłamczuch - to wyjątek od wcześniejszej reguły, wcześniejszy kłamczuch nadal może zostać teraz wylosowany.</li>
-                <li>Finaliści muszą odpowiedzieć 3 razy.</li>
-                <li>Dwie pomyłki oznaczają koniec gry i automatyczną przegraną.</li>
+                <li>Wyświetlane jest jedno pytanie, odpowiada tylko finałowa dwójka</li>
+                <li>Losowany jest kłamczuch - to wyjątek od wcześniejszej reguły, wcześniejszy kłamczuch nadal może zostać teraz wylosowany</li>
+                <li>Finaliści muszą odpowiedzieć 3 razy</li>
+                <li>Dwie pomyłki oznaczają koniec gry i automatyczną przegraną</li>
                 <li>Po odpowiedziach następuje faza obrony - każdy z finalistów ma swój czas, żeby przekonać pozostałych graczy, że jest niewinny. Zaczyna gracz z największą ilością uzyskanych punktów.</li>
                 <li>Po fazie obrony pozostali gracze decydują kto według nich jest kłamczuchem.<br><strong style="color:var(--text);">Wygrywa gracz, który NIE zostanie wskazany w głosowaniu.</strong></li>
-                <li>W fazie finałowej punkty nie mają już znaczenia - decydują tylko o kolejności obrony.</li>
+                <li>W fazie finałowej punkty nie mają już znaczenia - decydują tylko o kolejności obrony</li>
             </ol>
         </div>
+
+        <div style="margin-top: 30px;">
+            ${iAmReady ?
+                '<h3 style="color:var(--green);">Oczekujemy na resztę graczy...</h3>' :
+                '<button onclick="socket.emit(\'rulesUnderstood\')" style="width:100%; max-width:300px; padding:15px; font-size:1.2rem; background:var(--green); box-shadow:0 4px 15px rgba(0, 230, 118, 0.4);">Zasady zrozumiałem, gotowy!</button>'
+            }
+        </div>
+        ${understoodHtml}
     `;
     
     renderScoreboard('pre-final-scoreboard', s.players);
