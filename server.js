@@ -16,6 +16,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const VOTING_ROUNDS = [2, 4, 6, 8, 9, 10];
 
+// ZMIANA: Tablica niedozwolonych słów w nicku (możesz dopisywać kolejne)
+const FORBIDDEN_WORDS = ['cwel', 'nigger', 'czarnuch'];
+
 let gameState = {
   phase: 'lobby',
   players: {},
@@ -47,7 +50,7 @@ let gameState = {
   endReason: null,
   finalVotes: null,   
   finalTally: null,
-  rulesUnderstood: {} // ZMIANA: Śledzenie kto odklikał gotowość do finału
+  rulesUnderstood: {} 
 };
 
 let globalTransitionInterval = null;
@@ -213,7 +216,7 @@ function broadcastState() {
     endReason: gameState.endReason,
     finalVotes: gameState.finalVotes, 
     finalTally: gameState.finalTally,
-    rulesUnderstood: gameState.rulesUnderstood // Wysyłanie stanu gotowości
+    rulesUnderstood: gameState.rulesUnderstood
   };
 
   if (gameState.roundData) {
@@ -487,9 +490,8 @@ function startNextRound() {
 
   if (gameState.currentRound === 11) {
     gameState.phase = 'preFinal';
-    gameState.rulesUnderstood = {}; // ZMIANA: Resetujemy potwierdzenia gotowości
+    gameState.rulesUnderstood = {}; 
     broadcastState();
-    // ZMIANA: Usuwamy runTransition, gra czeka aż wszyscy klikną "Zrozumiałem"
     return;
   }
 
@@ -633,6 +635,14 @@ io.on('connection', (socket) => {
   socket.on('joinGame', ({ name }) => {
     const normName = name.trim();
     if (!normName) return;
+
+    // ZMIANA: Sprawdzanie wulgaryzmów przed wpuszczeniem gracza
+    const lowerName = normName.toLowerCase();
+    if (FORBIDDEN_WORDS.some(word => lowerName.includes(word))) {
+      socket.emit('error', 'To bardzo nieładna nazwa. Nie możesz takiej ustawić!');
+      return;
+    }
+
     if (gameState.players[normName]) {
       if (gameState.players[normName].connected) {
         socket.emit('error', 'Gracz o tym imieniu jest już w grze.');
@@ -687,7 +697,6 @@ io.on('connection', (socket) => {
     startNextRound();
   });
 
-  // ZMIANA: Obsługa przycisku gotowości
   socket.on('rulesUnderstood', () => {
     if (gameState.phase !== 'preFinal') return;
     const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
@@ -793,7 +802,6 @@ io.on('connection', (socket) => {
         p.connected = false; 
         broadcastState(); 
         
-        // ZMIANA: Zabezpieczenie przed zablokowaniem gry po wyjściu gracza (np. podczas czekania na przycisk)
         const expected = Object.values(gameState.players).filter(pl => pl.connected).length;
         if (expected > 0) {
             if (gameState.phase === 'preFinal') {
