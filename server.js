@@ -383,7 +383,7 @@ function postRoundRouting() {
 function startVoting() {
   gameState.phase = 'voting';
   gameState.votes = {};
-  gameState.votingTimeLeft = 60;
+  gameState.votingTimeLeft = 90;
   broadcastState();
   if (gameState.votingInterval) clearInterval(gameState.votingInterval);
   gameState.votingInterval = setInterval(() => {
