@@ -12,354 +12,145 @@
     --bg:#090910; --card:rgba(26,26,46,0.8); --accent:#ff2a5f; --accent2:#16213e;
     --text:#f0f0f0; --muted:#a0a0b0; --green:#00e676; --yellow:#ffd700; --blue:#00b4d8;
   }
-  
-  html { font-size: 16px; }
-
   * { box-sizing:border-box; margin:0; padding:0; font-family:'Poppins', sans-serif; }
   body { background:var(--bg); color:var(--text); min-height:100vh; background-image:radial-gradient(circle at top, #1a1a2e, #090910); overflow-x:hidden; }
-  h1 { color:var(--accent); font-size:clamp(1.8rem, 4vw, 2.5rem); font-weight:800; text-transform:uppercase; letter-spacing:1px; text-shadow:0 0 10px rgba(255,42,95,0.4); }
-  h2 { color:var(--yellow); font-size:clamp(1.2rem, 3vw, 1.6rem); margin-bottom:12px; }
-  h3 { color:var(--blue); font-size:1.1rem; margin-bottom:10px; }
-  
-  .screen { display:none; padding:clamp(15px, 3vw, 30px); max-width:1200px; margin:0 auto; animation: fadeIn .3s ease-out; }
+  .screen { display:none; padding:20px; max-width:1200px; margin:0 auto; animation: fadeIn .3s ease-out; }
   .screen.active { display:flex; flex-direction:column; gap:20px; }
   @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-  
-  .card { background:var(--card); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:clamp(15px, 3vw, 25px); box-shadow:0 8px 32px rgba(0,0,0,0.3); }
-  
-  input[type=text] {
-    background:rgba(0,0,0,0.4); border:2px solid #333; color:var(--text);
-    padding:14px 18px; border-radius:12px; font-size:1.1rem; width:100%; transition:border-color .2s;
-  }
-  input[type=text]:focus { outline:none; border-color:var(--accent); }
-  
+  .card { background:var(--card); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:25px; box-shadow:0 8px 32px rgba(0,0,0,0.3); }
   button {
     background:linear-gradient(135deg, var(--accent), #c21844); color:#fff; border:none; border-radius:12px;
-    padding:14px 28px; font-size:1.1rem; font-weight:600; cursor:pointer; transition:transform .2s, box-shadow .2s;
-    box-shadow:0 4px 15px rgba(255,42,95,0.3);
+    padding:14px 28px; font-size:1.1rem; font-weight:600; cursor:pointer; transition:transform .2s;
   }
-  button:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(255,42,95,0.5); }
-  
-  .player-chip {
-    display:inline-flex; align-items:center; gap:8px;
-    background:var(--accent2); border-radius:20px; padding:8px 16px;
-    font-size:0.95rem; margin:4px; border:2px solid transparent; transition:all .2s;
-  }
-  .player-chip.active { border-color:var(--yellow); box-shadow:0 0 10px rgba(255,215,0,0.3); transform:scale(1.05); }
-  .player-chip.offline { opacity:0.5; text-decoration:line-through; }
-  
-  .answer-tile {
-    background:linear-gradient(90deg, #16213e, rgba(22,33,62,0.4)); border-left:4px solid var(--blue);
-    border-radius:6px; padding:6px 10px; margin:4px 0; display:flex; justify-content:space-between; align-items:center;
-    font-size: 0.9rem;
-  }
+  input[type=text] { background:rgba(0,0,0,0.4); border:2px solid #333; color:#fff; padding:14px; border-radius:12px; width:100%; }
+  .player-chip { display:inline-flex; align-items:center; gap:8px; background:var(--accent2); border-radius:20px; padding:8px 16px; margin:4px; }
+  .answer-tile { background:rgba(22,33,62,0.6); border-left:4px solid var(--blue); border-radius:6px; padding:8px 12px; margin:6px 0; display:flex; justify-content:space-between; }
   .answer-tile.hidden { opacity: 0.3; border-left-color: #333; }
-  .answer-tile .pts { color:var(--yellow); font-weight:800; font-size:1rem; }
-  
-  .timer-bar-wrap { background:rgba(0,0,0,0.5); border-radius:8px; height:12px; overflow:hidden; margin:10px 0; border:1px solid #333; }
-  .timer-bar { height:100%; background:linear-gradient(90deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%); transition:width 1s linear; }
-  
-  .score-row { display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.05); font-size:1.1rem; }
-  
-  #game-layout { display:grid; grid-template-columns:1fr; gap:20px; }
-  @media(min-width: 900px) { #game-layout { grid-template-columns: 2fr 1fr; } }
-  
-  #liar-panel {
-    background:linear-gradient(180deg, rgba(255,42,95,0.1) 0%, rgba(0,0,0,0.5) 100%);
-    border:2px solid var(--accent); border-radius:16px; padding:20px; display:none;
+  .pts { color:var(--yellow); font-weight:800; }
+  .timer-bar-wrap { background:#111; border-radius:8px; height:12px; overflow:hidden; margin:10px 0; }
+  .timer-bar { height:100%; background:linear-gradient(90deg, var(--accent), var(--yellow)); transition:width 1s linear; }
+  .score-row { display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.1); }
+  #notification-toast {
+    position:fixed; top:20px; left:50%; transform:translateX(-50%); background:var(--blue); color:white;
+    padding:15px 30px; border-radius:30px; z-index:10000; font-weight:bold; display:none; animation: slideDown 0.4s;
   }
-  .liar-answer { padding:8px 0; font-size:0.95rem; display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.05); }
-  .liar-answer.revealed { color:var(--muted); text-decoration:line-through; opacity:0.5; }
-  
-  #voting-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:15px; }
-  .vote-card {
-    background:rgba(22,33,62,0.8); border:2px solid #333; border-radius:12px; padding:20px;
-    cursor:pointer; transition:all .2s; text-align:center; font-size: 1.2rem;
-  }
-  .vote-card.selected { border-color:var(--accent); background:rgba(255,42,95,0.2); }
-  
-  .vote-result-row { background:rgba(255,255,255,0.05); padding:10px 15px; border-radius:8px; margin:5px 0; display:flex; justify-content:space-between; align-items:center;}
-
-  #pause-overlay {
-    position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85);
-    display:none; flex-direction:column; justify-content:center; align-items:center; z-index:9999;
-  }
-
-  #global-audio-controls {
-    position: fixed; top: 15px; right: 15px; z-index: 1000;
-    background: rgba(22, 33, 62, 0.9); border: 1px solid var(--blue);
-    padding: 8px 12px; border-radius: 20px; display: flex; align-items: center; gap: 10px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(5px);
-  }
-
-  #global-transition-timer {
-    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-    background: linear-gradient(135deg, var(--accent), #c21844);
-    color: #fff; padding: 12px 30px; border-radius: 30px;
-    font-size: 1.3rem; font-weight: 800; box-shadow: 0 4px 15px rgba(255,42,95,0.5);
-    z-index: 1000; display: none; animation: popIn 0.3s ease-out;
-  }
-  @keyframes popIn {
-    from { opacity: 0; transform: translate(-50%, 20px); }
-    to { opacity: 1; transform: translate(-50%, 0); }
-  }
-
-  .grid-2col { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-
-  @media(min-width: 1600px) {
-    html { font-size: 20px; }
-    .screen { max-width: 1500px; gap: 30px; }
-    .card { padding: 35px; }
-    #game-layout { gap: 40px; }
-  }
-
-  @media(min-width: 2000px) {
-    html { font-size: 24px; }
-    .screen { max-width: 2000px; gap: 40px; }
-    .card { padding: 45px; }
-  }
+  @keyframes slideDown { from { top: -100px; } to { top: 20px; } }
 </style>
 </head>
 <body>
 
-<div id="global-audio-controls">
-  <span id="mute-btn" style="cursor:pointer; font-size:1.2rem;" onclick="toggleMute()">🔊</span>
-  <input type="range" id="vol-slider" min="0" max="1" step="0.05" oninput="changeVolume(this.value)" style="width:80px; cursor:pointer;">
-</div>
+<div id="notification-toast"></div>
 
-<div id="pause-overlay">
-  <h1 style="font-size:5rem;">PAUZA</h1>
-  <p style="color:var(--yellow); font-size:1.5rem;">Czekaj na wznowienie przez Host'a...</p>
-</div>
-
-<div id="global-transition-timer">
-  Następny etap za: <span id="gt-time" style="color:var(--yellow);"></span>s
+<div id="pause-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:none; z-index:9999; justify-content:center; align-items:center;">
+  <h1 style="font-size:4rem; color:var(--accent);">PAUZA</h1>
 </div>
 
 <div class="screen active" id="screen-join">
-  <div style="text-align:center; padding:5vh 0;">
-    <h1 style="font-size: 4rem;">KłamczuchQuiz</h1>
-  </div>
-  <div class="card" style="max-width:450px; margin:0 auto; width:100%;">
-    <h3 style="text-align: center;">Dołącz do gry</h3>
-    <input type="text" id="player-name" placeholder="Twoje imię..." maxlength="20" style="margin:15px 0;"/>
-    <button onclick="joinGame()" style="width:100%;">Dołącz do zabawy</button>
-    <p id="join-error" style="color:var(--accent); margin-top:15px; text-align:center; font-weight:600;"></p>
+  <div style="text-align:center; padding:10vh 0;"><h1>KłamczuchQuiz</h1></div>
+  <div class="card" style="max-width:400px; margin:0 auto;">
+    <input type="text" id="player-name" placeholder="Twoje imię..." maxlength="20"/>
+    <button onclick="joinGame()" style="width:100%; margin-top:15px;">Dołącz</button>
+    <p id="join-error" style="color:var(--accent); text-align:center; margin-top:10px;"></p>
   </div>
 </div>
 
 <div class="screen" id="screen-lobby">
   <div class="card" style="text-align:center;">
     <h2>Poczekalnia</h2>
-    <div id="lobby-players" style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top: 20px;"></div>
-  </div>
-  
-  <div class="card" style="text-align:left; font-size: 0.95rem; margin-top: 10px;">
-    <h3 style="color:var(--accent); text-align:center; margin-bottom:15px;">📜 ZASADY</h3>
-    <ol style="padding-left: 20px; color:var(--muted); display:flex; flex-direction:column; gap:8px;">
-      <li>Na początku gry wybierany jest kłamczuch. Będzie on widział wszystkie odpowiedzi na dane pytanie w rundzie.</li>
-      <li>Gracze zdobywają punkty poprzez odpowiadanie na pytanie w rundzie - jedno pytanie to tylko jedna odpowiedź na gracza. Kolejność jest losowana, a w kolejnych rundach zaczyna gracz z najmniejszą ilością punktów kończąc na graczu z największą ilością punktów.</li>
-      <li>Odpowiedzi mniej oczywiste są lepiej punktowane - od 100 do 1000 punktów</li>
-      <li>Odpowiedzi są poniekąd subiektywne, odpowiadali ankietowani.</li>
-      <li>Po rundach 2,4,6,8,9,10 odbywa się głosowanie na kłamczucha, jeśli przynajmniej 3 graczy wskaże prawidłową osobę to każdy dostaje 500 pkt a w następnej rundzie wybierany jest nowy kłamczuch. Ta sama osoba nie może być kłamczuchem 2 razy z rzędu.</li>
-      <li>Jeśli przynajmniej 3 graczy wskaże niewinną osobę to każdy z nich traci 500 pkt. Kłamczuch zyskuje wtedy 1000 pkt, które są ukryte do momentu jego zdemaskowania. Jeżeli kłamczuch będzie jedną z osób głosujących to w finalnym rozrachunku ma 500 pkt (1000 pkt - 500 pkt).</li>
-      <li>W przypadku remisu w głosowaniu i sytuacji gdzie dwóch graczy otrzyma po 3 głosy nic się nie dzieje, kłamczuch nie zostaje wykryty, nikt nie zyskuje i nie traci punktów</li>
-      <li>Gra składa się z 10 rund + 11 rundy finałowej.</li>
-      <li>Do rundy finałowej przechodzi 2 graczy z największą ilością punktów.</li>
-    </ol>
+    <div id="lobby-players" style="margin-top:20px;"></div>
   </div>
 </div>
 
 <div class="screen" id="screen-game">
-  <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:15px;">
-    <h1>Runda <span id="round-num" style="color:var(--yellow);"></span></h1>
-    <div id="my-name-display" style="color:var(--blue); font-weight:bold; font-size: 1.2rem;"></div>
+  <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:10px;">
+    <h1>Runda <span id="round-num"></span></h1>
+    <div id="my-name-display" style="color:var(--blue);"></div>
   </div>
-  <div id="game-layout">
-    <div style="display:flex; flex-direction:column; gap:20px;">
-      <div class="card">
-        <h2 id="question-text" style="margin-bottom:20px; font-size: 1.8rem;"></h2>
-        <div id="turn-info" style="background:rgba(0,0,0,0.3); padding:20px; border-radius:12px; text-align:center;">
-          <span id="turn-name" style="color:var(--yellow); font-size:1.5rem; font-weight:bold;"></span>
-          <span id="turn-label" style="color:var(--muted); font-size: 1.3rem;"></span>
-        </div>
-        <div id="timer-section" style="margin:15px 0;">
-          <div class="timer-bar-wrap" style="height: 15px;"><div class="timer-bar" id="timer-bar" style="width:100%"></div></div>
-          <div style="text-align:right;"><span id="timer-count" style="color:var(--yellow); font-weight:bold; font-size: 1.2rem;"></span></div>
-        </div>
-        <div id="answer-section" style="display:none; margin-top:20px;">
-          <div style="display:flex; gap:10px;">
-            <input type="text" id="answer-input" placeholder="Wpisz odpowiedź..." autocomplete="off"/>
-            <button onclick="submitAnswer()" id="answer-btn">Wyślij</button>
-          </div>
-        </div>
-        <div id="reveal-msg" style="display:none; text-align:center; padding:15px; border-radius:12px; margin-top:15px; font-weight:800; font-size: 1.2rem;"></div>
+  <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-top:20px;">
+    <div class="card">
+      <h2 id="question-text"></h2>
+      <div id="turn-info" style="margin-top:20px; font-size:1.4rem;">
+        <span id="turn-name" style="color:var(--yellow);"></span> <span id="turn-label"></span>
       </div>
+      <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar" style="width:100%"></div></div>
+      <div id="answer-section" style="display:none; margin-top:20px;">
+        <input type="text" id="answer-input" placeholder="Twoja odpowiedź..."/>
+        <button onclick="submitAnswer()" style="margin-top:10px; width:100%;">Wyślij</button>
+      </div>
+      <div id="reveal-msg" style="display:none; text-align:center; padding:15px; border-radius:12px; margin-top:10px; font-weight:bold;"></div>
     </div>
-    
     <div style="display:flex; flex-direction:column; gap:20px;">
-      <div class="card" id="revealed-answers-card">
-        <h3>Odpowiedzi (10)</h3>
-        <div id="revealed-answers"></div>
-      </div>
-      <div class="card" id="wrong-answers-card" style="display:none; border:1px solid var(--accent);">
-        <h3 style="color:var(--accent);">Błędne strzały</h3>
-        <div id="wrong-answers-list"></div>
-      </div>
-      <div id="liar-panel">
-        <h3 style="color:var(--accent); font-weight: 800;">🔴 KŁAMCZUCH</h3>
+      <div id="liar-panel" class="card" style="display:none; border:2px solid var(--accent);">
+        <h3 style="color:var(--accent);">🔴 KŁAMCZUCH</h3>
         <div id="liar-answers-list"></div>
       </div>
-      <div class="card">
-        <h3>Ranking</h3>
-        <div id="scoreboard"></div>
+      <div id="normal-answers" class="card">
+        <h3>Odpowiedzi</h3>
+        <div id="revealed-answers"></div>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="screen" id="screen-scoreboard">
+  <div class="card" style="max-width:800px; margin:0 auto; width:100%;">
+    <h1 style="text-align:center; color:var(--yellow);">RANKING PO RUNDZIE</h1>
+    <div id="global-timer-display" style="text-align:center; font-size:2rem; margin:10px 0;"></div>
+    <div id="scoreboard-table" style="margin-top:20px;"></div>
   </div>
 </div>
 
 <div class="screen" id="screen-round-summary">
-  <div class="card" style="max-width:1000px; margin:0 auto; width:100%;">
-    <h1 style="text-align:center; margin-bottom:10px;">Podsumowanie Rundy</h1>
-    <p id="rs-subtitle" style="text-align:center; color:var(--yellow); margin-bottom:20px; font-weight:bold; font-size: 1.3rem;"></p>
-    <div id="rs-all-answers" style="font-size: 1.2rem;"></div>
-  </div>
-</div>
-
-<div class="screen" id="screen-speeches">
-  <div class="card" style="text-align:center; max-width:800px; margin:0 auto; width:100%;">
-    <h1 style="color:var(--accent); margin-bottom:15px;">Czas na obronę!</h1>
-    <p style="font-size:1.3rem; color:var(--muted);">Szanowne Jury słucha uważnie. Tylko jeden z finalistów mówi prawdę...</p>
-    <div style="margin:40px 0;">
-      <span style="font-size:2rem;">Przemawia: </span><br/>
-      <strong id="speech-player" style="font-size:3.5rem; color:var(--green); display:block; margin-top:10px;"></strong>
-    </div>
-    <div id="speech-timer" style="font-size:6rem; color:var(--yellow); font-weight:800;">45</div>
+  <div class="card">
+    <h1 style="text-align:center;">Wszystkie odpowiedzi</h1>
+    <div id="rs-all-answers" style="margin-top:20px;"></div>
   </div>
 </div>
 
 <div class="screen" id="screen-voting">
-  <div class="card" style="text-align:center; max-width: 1000px; margin: 0 auto; width: 100%;">
-    <h2 id="voting-title">🗳️ Głosowanie</h2>
-    <p id="voting-subtitle" style="color:var(--muted); font-size:1.3rem; margin-top:-5px; margin-bottom:20px;">Wskaż kłamczucha</p>
-    <div id="vote-timer" style="font-size:4rem; color:var(--yellow); font-weight:800;">90</div>
-    <div id="voting-grid" style="margin-top:30px; margin-bottom:30px;"></div>
-    
-    <div id="voting-status" style="margin-top:20px; text-align:center; padding-top:20px; border-top:1px solid rgba(255,255,255,0.1);">
-      <h3 style="color:var(--blue); margin-bottom:15px;">Status głosowania:</h3>
-      <div id="voted-players-list" style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px;"></div>
-    </div>
+  <div class="card" style="text-align:center;">
+    <h2 id="vote-title">Głosowanie</h2>
+    <div id="vote-timer" style="font-size:3rem; color:var(--yellow);"></div>
+    <div id="voting-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:15px; margin-top:20px;"></div>
   </div>
 </div>
 
 <div class="screen" id="screen-voting-results">
-  <div class="card" style="max-width:1000px; margin:0 auto; width:100%;">
-    <h2 style="text-align:center; margin-bottom:15px; font-size: 2rem;">Wyniki Głosowania</h2>
-    <div id="voting-verdict" style="margin-bottom: 25px; padding: 20px; border-radius: 12px; background: rgba(0,0,0,0.3); text-align: center; border: 2px solid transparent;"></div>
-
-    <div class="grid-2col">
-      <div style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 12px;">
-        <h3 style="color:var(--blue); text-align:center; margin-bottom:15px;">Kto na kogo głosował?</h3>
-        <div id="voting-results-list" style="font-size: 1.1rem; display: flex; flex-direction: column; gap: 8px;"></div>
-      </div>
-      <div style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 12px; border: 1px solid var(--accent);">
-        <h3 style="color:var(--yellow); text-align:center; margin-bottom:15px;">Podsumowanie głosów</h3>
-        <div id="voting-tally-list" style="font-size: 1.2rem; display: flex; flex-direction: column; gap: 10px;"></div>
-      </div>
-    </div>
+  <div class="card">
+    <h2 style="text-align:center;">Wyniki Głosowania</h2>
+    <div id="voting-verdict" style="margin:20px 0; padding:20px; border-radius:12px; text-align:center; font-size:1.2rem;"></div>
+    <div id="voting-details"></div>
   </div>
 </div>
 
 <div class="screen" id="screen-pre-final">
-  <div class="card" style="text-align:center; max-width: 800px; margin: 0 auto; width: 100%;">
-    <div id="pre-final-announcement"></div>
-    <div id="pre-final-scoreboard" style="margin-top:30px; text-align:left; font-size: 1.3rem; display: flex; flex-direction: column; gap: 15px;"></div>
+  <div class="card" style="text-align:center;">
+    <h1>Wielki Finał</h1>
+    <div id="pre-final-announcement" style="font-size:1.5rem; margin:20px 0;"></div>
+    <button onclick="socket.emit('rulesUnderstood')">Gotowy!</button>
+  </div>
+</div>
+
+<div class="screen" id="screen-speeches">
+  <div class="card" style="text-align:center;">
+    <h1>Czas na obronę!</h1>
+    <div id="speech-player" style="font-size:3rem; color:var(--green); margin:20px 0;"></div>
+    <div id="speech-timer" style="font-size:4rem; color:var(--yellow);"></div>
   </div>
 </div>
 
 <div class="screen" id="screen-final">
-  <div class="card" style="text-align:center; max-width: 1000px; margin: 0 auto; width: 100%;">
-    <h1 style="color:var(--yellow); font-size: 3rem;">Koniec Gry!</h1>
-    <div id="final-verdict" style="margin: 25px 0;"></div>
-    <div id="final-voting-details" style="margin-top:20px;"></div>
-    <h3 style="color:var(--blue); margin-top:30px; text-align:left;">Ostateczny ranking punktowy:</h3>
-    <div id="final-scoreboard" style="margin-top:10px; text-align:left; font-size: 1.4rem; display: flex; flex-direction: column; gap: 15px;"></div>
+  <div class="card" style="text-align:center;">
+    <h1>Koniec Gry!</h1>
+    <div id="final-verdict" style="margin:30px 0;"></div>
+    <div id="final-scoreboard"></div>
   </div>
 </div>
 
 <script>
 const socket = io();
 let myName = '';
-let myVote = null;
-let timerInterval = null;
-let currentPhase = ''; 
-let lastSoundTime = 0; 
-let isGamePaused = false; 
-
-let isMuted = localStorage.getItem('kq_muted') === 'true';
-let globalVolume = localStorage.getItem('kq_volume') ? parseFloat(localStorage.getItem('kq_volume')) : 0.5;
-
-const sndCorrect = new Audio('/sounds/correct.mp3');
-const sndWrong = new Audio('/sounds/wrong.mp3');
-const sndFanfare = new Audio('/sounds/fanfare.mp3');
-
-function applyAudioSettings() {
-    const vol = isMuted ? 0 : globalVolume;
-    sndCorrect.volume = vol;
-    sndWrong.volume = vol;
-    sndFanfare.volume = vol;
-    
-    document.getElementById('mute-btn').textContent = isMuted || vol === 0 ? '🔇' : '🔊';
-    document.getElementById('vol-slider').value = globalVolume;
-}
-
-function toggleMute() {
-    initAudio(); 
-    isMuted = !isMuted;
-    localStorage.setItem('kq_muted', isMuted);
-    applyAudioSettings();
-}
-
-function changeVolume(val) {
-    initAudio();
-    globalVolume = parseFloat(val);
-    if (globalVolume > 0 && isMuted) {
-        isMuted = false;
-        localStorage.setItem('kq_muted', false);
-    }
-    localStorage.setItem('kq_volume', globalVolume);
-    applyAudioSettings();
-}
-
-window.addEventListener('DOMContentLoaded', applyAudioSettings);
-
-let audioCtx = null;
-function initAudio() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-}
-
-function playTick() {
-  if (!audioCtx || isMuted || globalVolume === 0) return;
-  const osc = audioCtx.createOscillator();
-  const gainNode = audioCtx.createGain();
-  osc.connect(gainNode); gainNode.connect(audioCtx.destination);
-  osc.type = 'sine'; osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-  
-  const tickVol = 0.1 * globalVolume; 
-  gainNode.gain.setValueAtTime(tickVol, audioCtx.currentTime);
-  gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
-  
-  osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.05);
-}
-
-window.onload = () => {
-  const savedName = localStorage.getItem('klamczuch_name');
-  if (savedName) {
-      document.getElementById('player-name').value = savedName;
-      setTimeout(() => joinGame(), 500); 
-  }
-};
+let currentPhase = '';
 
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -367,461 +158,173 @@ function showScreen(id) {
 }
 
 function joinGame() {
-  initAudio();
   const name = document.getElementById('player-name').value.trim();
-  if (name) {
-    localStorage.setItem('klamczuch_name', name);
-    socket.emit('joinGame', { name });
-  }
+  if (name) { myName = name; socket.emit('joinGame', { name }); }
 }
 
-socket.on('error', (msg) => {
-    document.getElementById('join-error').textContent = msg;
-});
+socket.on('error', m => document.getElementById('join-error').textContent = m);
 
-socket.on('globalCountdown', ({ timeLeft }) => {
-    const el = document.getElementById('global-transition-timer');
-    if (timeLeft > 0) {
-        el.style.display = 'block';
-        document.getElementById('gt-time').textContent = timeLeft;
-    } else {
-        el.style.display = 'none';
-    }
+socket.on('adminNotification', data => {
+  const toast = document.getElementById('notification-toast');
+  toast.textContent = data.message;
+  toast.style.display = 'block';
+  setTimeout(() => toast.style.display = 'none', 5000);
 });
 
 socket.on('state', s => {
-  if (s.myName) myName = s.myName;
-  
-  isGamePaused = s.isPaused; 
   document.getElementById('pause-overlay').style.display = s.isPaused ? 'flex' : 'none';
-
+  
   if (s.phase === 'lobby') {
-    clearInterval(timerInterval);
     showScreen('screen-lobby');
-    const c = document.getElementById('lobby-players');
-    c.innerHTML = s.players.map(p => `<span class="player-chip ${p.connected ? '' : 'offline'}">${p.name}</span>`).join('');
+    document.getElementById('lobby-players').innerHTML = s.players.map(p => `<span class="player-chip">${p.name}</span>`).join('');
   }
 
   if (s.phase === 'round') {
     showScreen('screen-game');
     document.getElementById('round-num').textContent = s.currentRound;
-    document.getElementById('my-name-display').textContent = myName;
     document.getElementById('question-text').textContent = s.questionText;
+    document.getElementById('my-name-display').textContent = s.myName;
 
-    if (s.liarAnswers) {
-      document.getElementById('liar-panel').style.display = 'block';
-      document.getElementById('revealed-answers-card').style.display = 'none'; 
-      const revIdxs = (s.revealedAnswers || []).map(r => r.index);
-      document.getElementById('liar-answers-list').innerHTML = s.liarAnswers.map((a, i) => `
-        <div class="liar-answer ${revIdxs.includes(i) ? 'revealed' : ''}">
-          <span>${a.text}</span><span style="color:var(--yellow)">${a.points}</span>
-        </div>`).join('');
-    } else {
-      document.getElementById('liar-panel').style.display = 'none';
-      document.getElementById('revealed-answers-card').style.display = 'block'; 
-    }
-
-    const isMyTurn = s.currentPlayerName === myName;
-    const turnNameEl = document.getElementById('turn-name');
-    const turnLabelEl = document.getElementById('turn-label');
-
-    if (isMyTurn) {
-      turnNameEl.textContent = '';
-      turnLabelEl.textContent = '👉 TWOJA KOLEJ 👈';
-      turnLabelEl.style.color = 'var(--green)';
-      turnLabelEl.style.fontWeight = 'bold';
-    } else {
-      turnNameEl.textContent = s.currentPlayerName;
-      turnLabelEl.textContent = ' odpowiada...';
-      turnLabelEl.style.color = 'var(--muted)';
-      turnLabelEl.style.fontWeight = 'normal';
-    }
-
+    const isMyTurn = s.currentPlayerName === s.myName;
+    document.getElementById('turn-name').textContent = isMyTurn ? "TWOJA KOLEJ" : s.currentPlayerName;
+    document.getElementById('turn-label').textContent = isMyTurn ? "" : "odpowiada...";
     document.getElementById('answer-section').style.display = isMyTurn ? 'block' : 'none';
 
-    const ansContainer = document.getElementById('revealed-answers');
-    ansContainer.innerHTML = '';
-    const count = s.answerCount || 10;
-    for (let i = 0; i < count; i++) {
-      const rev = s.revealedAnswers?.find(r => r.index === i);
-      const tile = document.createElement('div');
-      tile.className = 'answer-tile' + (rev ? '' : ' hidden');
-      if (rev) {
-        let author = rev.byName !== 'System' ? ` <small style="color:var(--muted); margin-left:8px;">(${rev.byName})</small>` : '';
-        tile.innerHTML = `<span>${i + 1}. ${rev.text}${author}</span><span class="pts">${rev.points}</span>`;
-      } else {
-        tile.innerHTML = `<span>${i + 1}. ???</span><span class="pts">---</span>`;
-      }
-      ansContainer.appendChild(tile);
+    // Panel kłamczucha
+    if (s.liarAnswers) {
+      document.getElementById('liar-panel').style.display = 'block';
+      document.getElementById('liar-answers-list').innerHTML = s.liarAnswers.map((a, i) => {
+        const rev = s.revealedAnswers.find(r => r.index === i);
+        // ZMIANA: Pokazujemy kto zgadł
+        return `<div style="padding:5px; border-bottom:1px solid #333; opacity:${rev?'0.4':'1'}">
+                  ${a.text} (${a.points}) ${rev && rev.byName !== 'System' ? ' - <small>'+rev.byName+'</small>' : ''}
+                </div>`;
+      }).join('');
+    } else {
+      document.getElementById('liar-panel').style.display = 'none';
     }
 
-    const wrongContainer = document.getElementById('wrong-answers-list');
-    wrongContainer.innerHTML = '';
-    if (s.wrongAnswersList && s.wrongAnswersList.length > 0) {
-        s.wrongAnswersList.forEach(w => {
-            wrongContainer.innerHTML += `<div style="color:var(--accent); padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.05);">❌ ${w.text} <small style="color:var(--muted)">(${w.byName})</small></div>`;
-        });
-        document.getElementById('wrong-answers-card').style.display = 'block';
-    } else {
-        document.getElementById('wrong-answers-card').style.display = 'none';
-    }
-    renderScoreboard('scoreboard', s.players);
-  }
-
-  if (s.phase === 'speeches') {
-    showScreen('screen-speeches');
-    const spEl = document.getElementById('speech-player');
-    if (s.speechPlayerName === myName) {
-        spEl.style.color = 'var(--accent)';
-        spEl.textContent = myName + ' (TWOJA KOLEJ!)';
-    } else {
-        spEl.style.color = 'var(--green)';
-        spEl.textContent = s.speechPlayerName;
-    }
+    // Odpowiedzi na ekranie
+    document.getElementById('revealed-answers').innerHTML = Array.from({length: s.answerCount}).map((_, i) => {
+      const rev = s.revealedAnswers.find(r => r.index === i);
+      return `<div class="answer-tile ${rev?'':'hidden'}">
+                <span>${i+1}. ${rev ? rev.text : '???'} ${rev && rev.byName !== 'System' ? '<small>('+rev.byName+')</small>' : ''}</span>
+                <span class="pts">${rev ? rev.points : '---'}</span>
+              </div>`;
+    }).join('');
   }
 
   if (s.phase === 'roundSummary') {
     showScreen('screen-round-summary');
-    document.getElementById('rs-subtitle').textContent = s.isVotingNext ? "PRZYGOTUJ SIĘ NA GŁOSOWANIE" : "PRZYGOTUJ SIĘ NA KOLEJNĄ RUNDĘ";
-    renderAnswerSlots('rs-all-answers', s.allAnswers, s.revealedAnswers, false);
+    document.getElementById('rs-all-answers').innerHTML = s.allAnswers.map((a, i) => {
+        const rev = s.revealedAnswers.find(r => r.index === i);
+        return `<div class="answer-tile ${rev?'':'hidden'}">
+                  <span>${i+1}. ${rev ? a.text : '???'}</span>
+                  <span class="pts">${a.points}</span>
+                </div>`;
+    }).join('');
+  }
+
+  if (s.phase === 'scoreboard') {
+    showScreen('screen-scoreboard');
+    const table = document.getElementById('scoreboard-table');
+    
+    let html = `<div style="display:grid; grid-template-columns: 50px 1fr 100px ${s.isVotingNext?'120px':''}; gap:10px; font-weight:bold; border-bottom:2px solid #555; padding-bottom:10px;">
+                  <span>Lp.</span><span>Gracz</span><span>Suma</span>${s.isVotingNext?'<span>W tej turze</span>':''}
+                </div>`;
+    
+    s.players.forEach((p, i) => {
+      // Obliczanie różnicy od ostatniego głosowania
+      const oldScore = s.lastVoteScores[p.name] || 0;
+      const diff = p.score - oldScore;
+
+      html += `<div class="score-row">
+                 <span>${i+1}.</span>
+                 <span>${p.name}</span>
+                 <span style="color:var(--yellow)">${p.score} pkt</span>
+                 ${s.isVotingNext ? `<span style="color:var(--green)">+${diff}</span>` : ''}
+               </div>`;
+    });
+    table.innerHTML = html;
   }
 
   if (s.phase === 'voting' || s.phase === 'finalVoting') {
     showScreen('screen-voting');
-    
-    if (s.phase === 'finalVoting') {
-        document.getElementById('voting-title').innerHTML = "⚖️ Sąd Ostateczny!";
-        document.getElementById('voting-subtitle').innerHTML = "Jury decyduje: Kto z tej dwójki mijał się z prawdą?";
-    } else {
-        document.getElementById('voting-title').innerHTML = "🗳️ Głosowanie";
-        document.getElementById('voting-subtitle').innerHTML = "Wskaż kłamczucha";
-    }
-
+    document.getElementById('vote-title').textContent = s.phase === 'finalVoting' ? "Werdykt Jury" : "Kto kłamie?";
     const grid = document.getElementById('voting-grid');
     grid.innerHTML = '';
-    
-    let targets = [];
-    if (s.phase === 'finalVoting') {
-        targets = s.players.filter(p => s.top2 && s.top2.includes(p.name) && p.name !== myName);
-    } else {
-        targets = s.players.filter(p => p.name !== myName);
-    }
-
+    const targets = s.phase === 'finalVoting' ? s.players.filter(p => s.top2.includes(p.name)) : s.players;
     targets.forEach(p => {
-      const card = document.createElement('div');
-      card.className = 'vote-card' + (myVote === p.name ? ' selected' : '');
-      card.innerHTML = `<strong>${p.name}</strong>`;
-      card.onclick = () => {
-        myVote = p.name;
-        socket.emit('vote', { votedName: p.name });
-        document.querySelectorAll('.vote-card').forEach(c => c.classList.remove('selected'));
-        card.classList.add('selected');
-      };
-      grid.appendChild(card);
-    });
-    
-    if (s.phase !== 'finalVoting') {
-        const abstainCard = document.createElement('div');
-        abstainCard.className = 'vote-card' + (myVote === 'ABSTAIN' ? ' selected' : '');
-        abstainCard.style.borderColor = 'var(--muted)';
-        abstainCard.innerHTML = `<strong style="color:var(--muted)">Wstrzymuję się</strong>`;
-        abstainCard.onclick = () => {
-            myVote = 'ABSTAIN';
-            socket.emit('vote', { votedName: 'ABSTAIN' });
-            document.querySelectorAll('.vote-card').forEach(c => c.classList.remove('selected'));
-            abstainCard.classList.add('selected');
-        };
-        grid.appendChild(abstainCard);
-    }
-
-    const votedList = document.getElementById('voted-players-list');
-    votedList.innerHTML = '';
-    s.players.forEach(p => {
-        const hasVoted = s.votes && s.votes[p.name];
-        votedList.innerHTML += `
-          <span class="player-chip" style="background:${hasVoted ? 'rgba(0, 230, 118, 0.2)' : 'var(--accent2)'}; border: 1px solid ${hasVoted ? 'var(--green)' : 'rgba(255,255,255,0.1)'}">
-            ${p.name} ${hasVoted ? '✅' : '⏳'}
-          </span>`;
+        if (p.name === s.myName) return;
+        const btn = document.createElement('button');
+        btn.textContent = p.name;
+        btn.onclick = () => socket.emit('vote', { votedName: p.name });
+        grid.appendChild(btn);
     });
   }
 
   if (s.phase === 'votingResults') {
     showScreen('screen-voting-results');
-    
-    const latestVerdict = s.liarHistory[s.liarHistory.length - 1];
-    if (latestVerdict && latestVerdict.round === s.currentRound) {
-        const verdictEl = document.getElementById('voting-verdict');
-        
-        let recoveredHtml = '';
-        if (s.lastRecoveredPoints && s.lastRecoveredPoints > 0) {
-            recoveredHtml = `<div style="background:rgba(255,215,0,0.15); border:2px solid var(--yellow); padding:10px; border-radius:8px; margin-top:15px; box-shadow: 0 0 15px rgba(255,215,0,0.4);">
-                               <strong style="color:var(--yellow); font-size:1.3rem;">💰 Kłamczuch rozbija bank! Za wcześniejsze mylne oskarżenia tłumu zgarnia ukryte +${s.lastRecoveredPoints} pkt!</strong>
-                             </div>`;
-        }
-
-        if (latestVerdict.caught) {
-            verdictEl.innerHTML = `<h3 style="color:var(--green); margin:0; font-size:1.6rem;">🚨 Kłamczuch został złapany!</h3>
-                                   <p style="font-size:1.2rem; margin-top:5px;">Kłamczuchem był gracz: <strong>${latestVerdict.liarName}</strong>.</p>
-                                   ${recoveredHtml}`;
-            verdictEl.style.borderColor = 'var(--green)';
-        } else {
-            verdictEl.innerHTML = `<h3 style="color:var(--accent); margin:0; font-size:1.6rem;">💨 Nie wykryto kłamczucha!</h3>
-                                   ${recoveredHtml}`;
-            verdictEl.style.borderColor = 'var(--accent)';
-        }
-    }
-
-    const list = document.getElementById('voting-results-list');
-    const tallyList = document.getElementById('voting-tally-list');
-    list.innerHTML = '';
-    tallyList.innerHTML = '';
-    myVote = null;
-    
-    const tally = {};
-
-    if (s.votes) {
-      Object.entries(s.votes).forEach(([voter, votedFor]) => {
-        tally[votedFor] = (tally[votedFor] || 0) + 1; 
-        
-        let votedText = votedFor === 'ABSTAIN' ? '<span style="color:var(--muted)">Wstrzymał się</span>' : `<strong>${votedFor}</strong>`;
-        
-        const change = s.lastVotingChanges[voter] || 0;
-        let color = 'var(--muted)';
-        if (change > 0) color = 'var(--green)';
-        else if (change < 0) color = 'var(--accent)';
-        
-        list.innerHTML += `
-          <div class="vote-result-row">
-            <span><strong>${voter}</strong> → ${votedText}</span>
-            <span style="color:${color}; font-weight:800">${change > 0 ? '+' : ''}${change} pkt</span>
-          </div>`;
-      });
-    }
-
-    const sortedTally = Object.entries(tally).sort((a,b) => b[1] - a[1]);
-    if (sortedTally.length > 0) {
-        sortedTally.forEach(([name, count]) => {
-            let textGlos = 'głosów';
-            if (count === 1) textGlos = 'głos';
-            else if (count > 1 && count < 5) textGlos = 'głosy';
-            
-            let displayName = name === 'ABSTAIN' ? '<span style="color:var(--muted)">Wstrzymali się</span>' : `<strong>${name}</strong>`;
-
-            tallyList.innerHTML += `
-              <div class="vote-result-row" style="background: rgba(255,42,95,0.1); border-left: 4px solid var(--accent); justify-content: space-between;">
-                <span style="font-size:1.3rem;">${displayName}</span>
-                <span style="color:var(--yellow); font-weight:800; font-size:1.3rem;">${count} ${textGlos}</span>
-              </div>`;
-        });
+    const verdict = s.liarHistory[s.liarHistory.length - 1];
+    const el = document.getElementById('voting-verdict');
+    if (verdict.caught) {
+        el.innerHTML = `<span style="color:var(--green)">ZŁAPANY!</span><br>Kłamczuchem był <b>${verdict.liarName}</b>`;
+        el.style.border = "2px solid var(--green)";
     } else {
-        tallyList.innerHTML = `<div style="text-align:center; color:var(--muted); padding:10px;">Brak oddanych głosów</div>`;
+        el.innerHTML = `<span style="color:var(--accent)">KŁAMCZUCH UCIEKŁ!</span>`;
+        el.style.border = "2px solid var(--accent)";
     }
   }
 
-  if (s.phase === 'preFinal') {
-    showScreen('screen-pre-final');
-    const top2 = [s.players[0], s.players[1]];
-    
-    let understoodHtml = '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:20px;">';
-    s.players.forEach(p => {
-        const isReady = s.rulesUnderstood && s.rulesUnderstood[p.name];
-        understoodHtml += `
-          <span class="player-chip" style="background:${isReady ? 'rgba(0, 230, 118, 0.2)' : 'var(--accent2)'}; border: 1px solid ${isReady ? 'var(--green)' : 'rgba(255,255,255,0.1)'}">
-            ${p.name} ${isReady ? '✅' : '⏳'}
-          </span>`;
-    });
-    understoodHtml += '</div>';
-
-    const iAmReady = s.rulesUnderstood && s.rulesUnderstood[myName];
-
-    document.getElementById('pre-final-announcement').innerHTML = `
-        <h2 style="color:var(--yellow); font-size: 2.5rem; margin-bottom: 5px;">Koniec Rundy 10!</h2>
-        <h1 style="color:var(--accent); font-size: 3.5rem; margin-bottom: 20px;">Wielki Finał</h1>
-        <p style="font-size: 1.5rem; color: var(--text);">Do ostatecznego starcia wchodzą:</p>
-        <div style="font-size: 3rem; font-weight: 800; color: var(--green); margin: 15px 0;">
-            ${top2[0]?.name || '?'} <span style="color:var(--muted); font-size:1.5rem;">vs</span> ${top2[1]?.name || '?'}
-        </div>
-        <p style="font-size: 1.2rem; color: var(--muted); margin-top:15px;">Uwaga! Został wśród nich wylosowany i ukryty nowy Kłamczuch...</p>
-
-        <div style="background: rgba(0,0,0,0.3); padding: 20px; border-radius: 12px; margin-top: 25px; text-align: left; border: 1px solid var(--blue);">
-            <h3 style="color:var(--blue); text-align:center; margin-bottom:15px;">📜 ZASADY FINAŁU</h3>
-            <ol style="padding-left: 20px; color:var(--muted); font-size: 1.1rem; display:flex; flex-direction:column; gap:8px;">
-                <li>Wyświetlane jest jedno pytanie, odpowiada tylko finałowa dwójka</li>
-                <li>Losowany jest kłamczuch - to wyjątek od wcześniejszej reguły, wcześniejszy kłamczuch nadal może zostać teraz wylosowany</li>
-                <li>Finaliści muszą odpowiedzieć 3 razy</li>
-                <li>Dwie pomyłki oznaczają koniec gry i automatyczną przegraną</li>
-                <li>Po odpowiedziach następuje faza obrony - każdy z finalistów ma swój czas, żeby przekonać pozostałych graczy, że jest niewinny. Zaczyna gracz z największą ilością uzyskanych punktów.</li>
-                <li>Po fazie obrony pozostali gracze decydują kto według nich jest kłamczuchem.<br><strong style="color:var(--text);">Wygrywa gracz, który NIE zostanie wskazany w głosowaniu.</strong></li>
-                <li>W fazie finałowej punkty nie mają już znaczenia - decydują tylko o kolejności obrony</li>
-            </ol>
-        </div>
-
-        <div style="margin-top: 30px;">
-            ${iAmReady ?
-                '<h3 style="color:var(--green);">Oczekujemy na resztę graczy...</h3>' :
-                '<button onclick="socket.emit(\'rulesUnderstood\')" style="width:100%; max-width:300px; padding:15px; font-size:1.2rem; background:var(--green); box-shadow:0 4px 15px rgba(0, 230, 118, 0.4);">Zasady zrozumiałem, gotowy!</button>'
-            }
-        </div>
-        ${understoodHtml}
-    `;
-    
-    renderScoreboard('pre-final-scoreboard', s.players);
+  if (s.phase === 'speeches') {
+    showScreen('screen-speeches');
+    document.getElementById('speech-player').textContent = s.speechPlayerName;
   }
 
   if (s.phase === 'finalSummary') {
     showScreen('screen-final');
-    
-    const finalVerdictEl = document.getElementById('final-verdict');
-    const fvDetails = document.getElementById('final-voting-details');
-    fvDetails.innerHTML = ''; 
-    
-    if (s.endReason === 'mistakes') {
-        const winner = s.players[0]; 
-        finalVerdictEl.innerHTML = `
-            <h3 style="color:var(--yellow); font-size: 2.5rem; margin-bottom: 10px;">🏆 Wygrywa: ${winner.name}!</h3>
-            <p style="color:var(--muted); font-size: 1.2rem;">Gra zakończona – przeciwnik popełnił 2 błędy.</p>
-        `;
-    } else {
-        const latestVerdict = s.liarHistory[s.liarHistory.length - 1];
-        if (latestVerdict && latestVerdict.round === 11) {
-            if (latestVerdict.caught) {
-                finalVerdictEl.innerHTML = `<h3 style="color:var(--green); font-size: 1.8rem;">🚨 Kłamczuch (${latestVerdict.liarName}) został ZŁAPANY! Triumfuje Jury i Prawdomówny.</h3>`;
-            } else {
-                finalVerdictEl.innerHTML = `<h3 style="color:var(--accent); font-size: 1.8rem;">💨 Kłamczuch (${latestVerdict.liarName}) WYGRAŁ i wymknął się!</h3>`;
-            }
-        }
-
-        if (s.finalVotes && s.finalTally) {
-            let detailsHtml = '<h3 style="color:var(--blue); margin-top:30px; margin-bottom:15px; text-align:center;">Kto na kogo głosował w finale?</h3><div class="grid-2col">';
-
-            let listHtml = '<div style="background:rgba(0,0,0,0.2); padding:15px; border-radius:12px; display:flex; flex-direction:column; gap:8px;">';
-            Object.entries(s.finalVotes).forEach(([voter, votedFor]) => {
-                listHtml += `<div class="vote-result-row"><span><strong>${voter}</strong> → <strong>${votedFor}</strong></span></div>`;
-            });
-            listHtml += '</div>';
-
-            let tallyHtml = '<div style="background:rgba(0,0,0,0.2); padding:15px; border-radius:12px; border:1px solid var(--accent); display:flex; flex-direction:column; gap:10px;">';
-            Object.entries(s.finalTally).sort((a,b)=>b[1]-a[1]).forEach(([name, count]) => {
-                tallyHtml += `<div class="vote-result-row" style="background: rgba(255,42,95,0.1); border-left: 4px solid var(--accent); justify-content: space-between;"><span style="font-size:1.3rem;"><strong>${name}</strong></span><span style="color:var(--yellow); font-weight:800; font-size:1.3rem;">${count} głosy</span></div>`;
-            });
-            tallyHtml += '</div>';
-
-            fvDetails.innerHTML = detailsHtml + listHtml + tallyHtml + '</div>';
-        }
-    }
-
-    renderScoreboard('final-scoreboard', s.players);
-
-    if (currentPhase !== 'finalSummary') {
-        if (typeof confetti === 'function') {
-            confetti({ particleCount: 200, spread: 160, origin: { y: 0.6 } });
-        }
-        sndFanfare.pause();
-        sndFanfare.currentTime = 0;
-        sndFanfare.play().catch(e => console.log("Błąd audio:", e)); 
-    }
+    if (currentPhase !== 'finalSummary') confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    const verdict = s.liarHistory[s.liarHistory.length - 1];
+    document.getElementById('final-verdict').innerHTML = verdict.caught ? 
+        `<h2 style="color:var(--green)">Jury miało rację!</h2><p>${verdict.liarName} został zdemaskowany.</p>` :
+        `<h2 style="color:var(--accent)">Kłamca wygrał!</h2><p>${verdict.liarName} oszukał wszystkich.</p>`;
   }
-  
-  currentPhase = s.phase; 
+
+  currentPhase = s.phase;
 });
 
-function renderAnswerSlots(containerId, allAnswers, revealed, showAllText) {
-  const container = document.getElementById(containerId);
-  container.innerHTML = '';
-  if (!allAnswers) return;
-
-  allAnswers.forEach((ans, i) => {
-    const rev = revealed?.find(r => r.index === i);
-    const tile = document.createElement('div');
-    tile.className = 'answer-tile' + (rev || showAllText ? '' : ' hidden');
-    let content = rev || showAllText ? ans.text : '???';
-    let author = rev && rev.byName !== 'System' ? ` <small style="color:var(--muted)">(${rev.byName})</small>` : '';
-    tile.innerHTML = `<span>${i + 1}. ${content}${author}</span><span class="pts">${ans.points}</span>`;
-    container.appendChild(tile);
-  });
-}
-
-socket.on('timerStart', ({ duration, phase, correct, message }) => {
-  clearInterval(timerInterval);
+socket.on('timerStart', d => {
   const bar = document.getElementById('timer-bar');
-  const count = document.getElementById('timer-count');
-  const revMsg = document.getElementById('reveal-msg');
-
-  if (phase === 'reveal') {
-    revMsg.style.display = 'block';
-    revMsg.textContent = message;
-    revMsg.style.background = correct ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 42, 95, 0.2)';
-    revMsg.style.color = correct ? 'var(--green)' : 'var(--accent)';
-    document.getElementById('answer-section').style.display = 'none';
-    
-    const now = Date.now();
-    if (now - lastSoundTime > 3500) {
-        lastSoundTime = now;
-        if (correct) {
-            sndCorrect.pause();
-            sndCorrect.currentTime = 0;
-            sndCorrect.play().catch(e => console.log("Błąd audio:", e));
-        } else {
-            sndWrong.pause();
-            sndWrong.currentTime = 0;
-            sndWrong.play().catch(e => console.log("Błąd audio:", e));
-        }
-    }
-
+  const msg = document.getElementById('reveal-msg');
+  if (d.phase === 'reveal') {
+    msg.style.display = 'block';
+    msg.textContent = d.message;
+    msg.style.color = d.correct ? 'var(--green)' : 'var(--accent)';
   } else {
-    revMsg.style.display = 'none';
+    msg.style.display = 'none';
   }
-
-  let t = duration;
-  let totalDuration = duration;
-  count.textContent = t + 's';
+  let t = d.duration;
   bar.style.width = '100%';
-
-  timerInterval = setInterval(() => {
-    if (isGamePaused) return; 
-
-    t--; 
-    count.textContent = t + 's';
-    bar.style.width = (t / totalDuration * 100) + '%';
-    
-    if (phase === 'answer' && document.getElementById('answer-section').style.display === 'block') {
-        if (t <= 5 && t > 0) {
-            playTick();
-            setTimeout(playTick, 500); 
-        } else if (t > 5) {
-            playTick();
-        }
-    }
-
-    if (t <= 0) clearInterval(timerInterval);
+  const itv = setInterval(() => {
+    t--;
+    bar.style.width = (t/d.duration*100)+'%';
+    if (t <= 0) clearInterval(itv);
   }, 1000);
 });
 
-socket.on('votingTimer', ({ timeLeft }) => {
-  const el = document.getElementById('vote-timer');
-  if(el) el.textContent = timeLeft;
-  
-  const elSpeech = document.getElementById('speech-timer');
-  if(elSpeech) elSpeech.textContent = timeLeft;
+socket.on('globalCountdown', d => {
+    const el = document.getElementById('global-timer-display');
+    if (el) el.textContent = d.timeLeft > 0 ? `Pozostało: ${d.timeLeft}s` : '';
 });
 
-function renderScoreboard(elId, players) {
-  const el = document.getElementById(elId);
-  el.innerHTML = '';
-  players.forEach((p, i) => {
-    el.innerHTML += `<div class="score-row"><span>${i+1}. ${p.name}</span><strong>${p.score} pkt</strong></div>`;
-  });
-}
+socket.on('votingTimer', d => {
+    const v = document.getElementById('vote-timer'); if(v) v.textContent = d.timeLeft + 's';
+    const s = document.getElementById('speech-timer'); if(s) s.textContent = d.timeLeft + 's';
+});
 
 function submitAnswer() {
   const input = document.getElementById('answer-input');
-  if (input.value.trim()) {
-    socket.emit('submitAnswer', { answer: input.value.trim() });
-    input.value = '';
-    document.getElementById('answer-section').style.display = 'none';
-    document.getElementById('turn-label').textContent = 'Sprawdzanie odpowiedzi...';
-    document.getElementById('turn-label').style.color = 'var(--yellow)';
-  }
+  if (input.value.trim()) { socket.emit('submitAnswer', { answer: input.value.trim() }); input.value = ''; }
 }
 </script>
 </body>
