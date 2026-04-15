@@ -80,6 +80,24 @@
   
   .vote-result-row { background:rgba(255,255,255,0.05); padding:10px 15px; border-radius:8px; margin:5px 0; display:flex; justify-content:space-between; align-items:center;}
 
+  /* NOWE STYLE POWERUP */
+  .powerup-btn-wrap { display:inline-block; position:relative; margin: 10px 0 25px 0; }
+  .powerup-btn {
+    background: linear-gradient(135deg, #ffd700, #ff8c00); color: #000;
+    border-radius: 50%; width: 70px; height: 70px; font-size: 1.8rem; font-weight: 900;
+    border: 4px solid #fff; cursor: pointer; box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+    transition: transform 0.2s, filter 0.2s;
+  }
+  .powerup-btn.active { transform: scale(1.15); box-shadow: 0 0 30px rgba(255, 215, 0, 1); border-color: var(--accent); }
+  .powerup-btn.disabled { filter: grayscale(100%); cursor: not-allowed; opacity: 0.5; box-shadow: none; }
+  .powerup-tooltip {
+    visibility: hidden; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.95); color: #fff; padding: 12px; border-radius: 8px; width: 280px;
+    font-size: 0.95rem; text-align: center; border: 1px solid var(--yellow);
+    z-index: 10; margin-bottom: 10px; pointer-events: none; opacity: 0; transition: opacity 0.2s;
+  }
+  .powerup-btn-wrap:hover .powerup-tooltip { visibility: visible; opacity: 1; }
+
   #pause-overlay {
     position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85);
     display:none; flex-direction:column; justify-content:center; align-items:center; z-index:9999;
@@ -100,7 +118,6 @@
     z-index: 1000; display: none; animation: popIn 0.3s ease-out;
   }
 
-  /* NOWE: Styl dla powiadomienia od Admina */
   #notification-toast {
     position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
     background: linear-gradient(135deg, var(--blue), #0077b6);
@@ -109,15 +126,8 @@
     z-index: 10000; display: none; animation: slideDown 0.4s ease-out; border: 2px solid #fff;
   }
 
-  @keyframes popIn {
-    from { opacity: 0; transform: translate(-50%, 20px); }
-    to { opacity: 1; transform: translate(-50%, 0); }
-  }
-  
-  @keyframes slideDown {
-    from { opacity: 0; transform: translate(-50%, -50px); }
-    to { opacity: 1; transform: translate(-50%, 0); }
-  }
+  @keyframes popIn { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+  @keyframes slideDown { from { opacity: 0; transform: translate(-50%, -50px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
   .grid-2col { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
 
@@ -179,7 +189,7 @@
       <li>Odpowiedzi mniej oczywiste są lepiej punktowane - od 100 do 1000 punktów</li>
       <li>Odpowiedzi są poniekąd subiektywne, odpowiadali ankietowani.</li>
       <li>Po rundach 2,4,6,8,10 odbywa się głosowanie na kłamczucha, jeśli przynajmniej 3 graczy wskaże prawidłową osobę to każdy dostaje 500 pkt a w następnej rundzie wybierany jest nowy kłamczuch. Ta sama osoba nie może być kłamczuchem 2 razy z rzędu.</li>
-      <li>Jeśli przynajmniej 3 graczy wskaże niewinną osobę to każdy z nich traci 500 pkt. Kłamczuch zyskuje wtedy 1000 pkt, które są ukryte do momentu jego zdemaskowania. Jeżeli kłamczuch będzie jedną z osób głosujących to w finalnym rozrachunku ma 500 pkt (1000 pkt - 500 pkt).</li>
+      <li>Jeśli przynajmniej 3 graczy wskaże niewinną osobę to każdy z nich traci 500 pkt. Kłamczuch zyskuje wtedy 700 pkt, które są ukryte do momentu jego zdemaskowania. Jeżeli kłamczuch będzie jedną z osób głosujących to w finalnym rozrachunku ma 200 pkt (700 pkt - 500 pkt).</li>
       <li>W przypadku remisu w głosowaniu i sytuacji gdzie dwóch graczy otrzyma po 3 głosy nic się nie dzieje, kłamczuch nie zostaje wykryty, nikt nie zyskuje i nie traci punktów</li>
       <li>Gra składa się z 10 rund + 11 rundy finałowej.</li>
       <li>Do rundy finałowej przechodzi 2 graczy z największą ilością punktów.</li>
@@ -258,7 +268,7 @@
       <span style="font-size:2rem;">Przemawia: </span><br/>
       <strong id="speech-player" style="font-size:3.5rem; color:var(--green); display:block; margin-top:10px;"></strong>
     </div>
-    <div id="speech-timer" style="font-size:6rem; color:var(--yellow); font-weight:800;">45</div>
+    <div id="speech-timer" style="font-size:6rem; color:var(--yellow); font-weight:800;">45s</div>
   </div>
 </div>
 
@@ -266,13 +276,15 @@
   <div class="card" style="text-align:center; max-width: 1000px; margin: 0 auto; width: 100%;">
     <h2 id="voting-title">🗳️ Głosowanie</h2>
     <p id="voting-subtitle" style="color:var(--muted); font-size:1.3rem; margin-top:-5px; margin-bottom:20px;">Wskaż kłamczucha</p>
-    <div id="vote-timer" style="font-size:4rem; color:var(--yellow); font-weight:800;">90</div>
-    <div id="voting-grid" style="margin-top:30px; margin-bottom:30px;"></div>
+    <div id="vote-timer" style="font-size:4rem; color:var(--yellow); font-weight:800;">90s</div>
     
-    <div id="voting-status" style="margin-top:20px; text-align:center; padding-top:20px; border-top:1px solid rgba(255,255,255,0.1);">
-      <h3 style="color:var(--blue); margin-bottom:15px;">Status głosowania:</h3>
-      <div id="voted-players-list" style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px;"></div>
+    <div id="powerup-container" class="powerup-btn-wrap" style="display:none;">
+      <button id="btn-powerup" class="powerup-btn" onclick="togglePowerup()">x2</button>
+      <div class="powerup-tooltip">Punkty, które otrzymasz bądź stracisz za to głosowanie są liczone podwójnie. Limit użyć: raz na grę.</div>
+      <div id="powerup-label" style="color:var(--yellow); margin-top:10px; font-weight:bold;">Użyj PowerUPa!</div>
     </div>
+
+    <div id="voting-grid" style="margin-top:20px; margin-bottom:30px;"></div>
   </div>
 </div>
 
@@ -306,8 +318,8 @@
     <h1 style="color:var(--yellow); font-size: 3rem;">Koniec Gry!</h1>
     <div id="final-verdict" style="margin: 25px 0;"></div>
     <div id="final-voting-details" style="margin-top:20px;"></div>
-    <h3 style="color:var(--blue); margin-top:30px; text-align:left;">Ostateczny ranking punktowy:</h3>
-    <div id="final-scoreboard" style="margin-top:10px; text-align:left; font-size: 1.4rem; display: flex; flex-direction: column; gap: 15px;"></div>
+    <h3 style="color:var(--blue); margin-top:30px; margin-bottom:15px; text-align:left;">Ostateczny ranking punktowy:</h3>
+    <div id="final-scoreboard" style="font-size: 1.3rem; text-align: left; display: flex; flex-direction: column; gap: 10px;"></div>
   </div>
 </div>
 
@@ -315,6 +327,7 @@
 const socket = io();
 let myName = '';
 let myVote = null;
+let isPowerupActive = false; // ZMIANA: lokalny stan PowerUPa
 let timerInterval = null;
 let currentPhase = ''; 
 let lastSoundTime = 0; 
@@ -353,6 +366,20 @@ function changeVolume(val) {
     }
     localStorage.setItem('kq_volume', globalVolume);
     applyAudioSettings();
+}
+
+// ZMIANA: Funkcja przełączania PowerUPa
+function togglePowerup() {
+    const btn = document.getElementById('btn-powerup');
+    if (btn.classList.contains('disabled')) return;
+    isPowerupActive = !isPowerupActive;
+    if (isPowerupActive) btn.classList.add('active');
+    else btn.classList.remove('active');
+    
+    // Jeśli gracz przełączy PowerUP po tym jak już zaznaczył kartę głosu – wysyłamy od razu aktualizację do serwera
+    if (myVote && myVote !== null) {
+        socket.emit('vote', { votedName: myVote, usePowerup: isPowerupActive });
+    }
 }
 
 window.addEventListener('DOMContentLoaded', applyAudioSettings);
@@ -403,7 +430,6 @@ socket.on('error', (msg) => {
     document.getElementById('join-error').textContent = msg;
 });
 
-// NOWE: Nasłuchiwanie na wiadomość od Admina o uznaniu odpowiedzi
 socket.on('adminNotification', (data) => {
     const toast = document.getElementById('notification-toast');
     toast.textContent = data.message;
@@ -411,6 +437,12 @@ socket.on('adminNotification', (data) => {
     setTimeout(() => {
         toast.style.display = 'none';
     }, 5000);
+});
+
+socket.on('kicked', (msg) => {
+    alert(msg);
+    localStorage.removeItem('klamczuch_name');
+    window.location.reload(); 
 });
 
 socket.on('globalCountdown', ({ timeLeft }) => {
@@ -446,7 +478,6 @@ socket.on('state', s => {
       document.getElementById('liar-panel').style.display = 'block';
       document.getElementById('revealed-answers-card').style.display = 'none'; 
       
-      // ZMIANA: Dodanie informacji, KTO zgadł daną odpowiedź dla Kłamczucha
       document.getElementById('liar-answers-list').innerHTML = s.liarAnswers.map((a, i) => {
         const rev = s.revealedAnswers?.find(r => r.index === i);
         const isRev = !!rev;
@@ -508,7 +539,6 @@ socket.on('state', s => {
     renderScoreboard('scoreboard', s.players);
   }
 
-  // NOWA FAZA: Wyświetlanie tablicy punktów po rundzie (trwa 15 sekund)
   if (s.phase === 'scoreboard') {
     showScreen('screen-scoreboard');
     const table = document.getElementById('scoreboard-table');
@@ -518,11 +548,10 @@ socket.on('state', s => {
         <span style="flex:0.5;">Lp.</span>
         <span style="flex:2;">Gracz</span>
         <span style="flex:1.5; text-align:right;">Suma punktów</span>
-        ${s.isVotingNext ? '<span style="flex:1.5; text-align:right;">Od ost. głosowania</span>' : ''}
+        ${s.showDelta ? '<span style="flex:1.5; text-align:right;">Od ost. głosowania</span>' : ''}
       </div>`;
     
     s.players.forEach((p, i) => {
-      // Obliczanie "Delty" punktowej od ostatniego głosowania
       const oldScore = s.lastVoteScores ? (s.lastVoteScores[p.name] || 0) : 0;
       const diff = p.score - oldScore;
 
@@ -531,7 +560,7 @@ socket.on('state', s => {
            <span style="flex:0.5;">${i+1}.</span>
            <span style="flex:2;">${p.name}</span>
            <span style="flex:1.5; text-align:right; color:var(--yellow); font-weight:bold;">${p.score} pkt</span>
-           ${s.isVotingNext ? `<span style="flex:1.5; text-align:right; color:var(--green); font-weight:bold;">+${diff} pkt</span>` : ''}
+           ${s.showDelta ? `<span style="flex:1.5; text-align:right; color:var(--green); font-weight:bold;">+${diff} pkt</span>` : ''}
         </div>`;
     });
     table.innerHTML = html;
@@ -540,6 +569,10 @@ socket.on('state', s => {
   if (s.phase === 'speeches') {
     showScreen('screen-speeches');
     const spEl = document.getElementById('speech-player');
+    
+    const stEl = document.getElementById('speech-timer');
+    if (stEl) stEl.textContent = s.votingTimeLeft + 's';
+
     if (s.speechPlayerName === myName) {
         spEl.style.color = 'var(--accent)';
         spEl.textContent = myName + ' (TWOJA KOLEJ!)';
@@ -556,62 +589,85 @@ socket.on('state', s => {
   }
 
   if (s.phase === 'voting' || s.phase === 'finalVoting') {
+    // ZMIANA: Resetujemy lokalny przycisk PowerUPa jeśli to nowa runda głosowania
+    if (currentPhase !== 'voting' && s.phase === 'voting') {
+        isPowerupActive = false;
+        myVote = null;
+    }
+
     showScreen('screen-voting');
     
+    const vtEl = document.getElementById('vote-timer');
+    if (vtEl) vtEl.textContent = s.votingTimeLeft + 's';
+
+    const puContainer = document.getElementById('powerup-container');
+    const puBtn = document.getElementById('btn-powerup');
+    const puLabel = document.getElementById('powerup-label');
+
     if (s.phase === 'finalVoting') {
         document.getElementById('voting-title').innerHTML = "⚖️ Sąd Ostateczny!";
         document.getElementById('voting-subtitle').innerHTML = "Jury decyduje: Kto z tej dwójki mijał się z prawdą?";
+        puContainer.style.display = 'none'; // W finale nie ma powerupów
     } else {
         document.getElementById('voting-title').innerHTML = "🗳️ Głosowanie";
         document.getElementById('voting-subtitle').innerHTML = "Wskaż kłamczucha";
+        
+        // ZMIANA: Konfiguracja panelu PowerUP
+        puContainer.style.display = 'inline-block';
+        if (s.myPowerupUsed && !isPowerupActive) {
+            puBtn.classList.add('disabled');
+            puBtn.classList.remove('active');
+            puLabel.textContent = "Wykorzystano";
+            puLabel.style.color = "var(--muted)";
+        } else {
+            puBtn.classList.remove('disabled');
+            if (isPowerupActive) puBtn.classList.add('active');
+            else puBtn.classList.remove('active');
+            puLabel.textContent = "Użyj PowerUPa!";
+            puLabel.style.color = "var(--yellow)";
+        }
     }
 
     const grid = document.getElementById('voting-grid');
     grid.innerHTML = '';
     
-    let targets = [];
-    if (s.phase === 'finalVoting') {
-        targets = s.players.filter(p => s.top2 && s.top2.includes(p.name) && p.name !== myName);
+    if (s.phase === 'finalVoting' && s.top2 && s.top2.includes(myName)) {
+        grid.innerHTML = '<h3 style="color:var(--yellow); grid-column: 1 / -1; text-align: center; font-size: 1.5rem; margin-top: 20px;">Jesteś finalistą. Nie bierzesz udziału w głosowaniu!<br>Oczekuj na werdykt...</h3>';
     } else {
-        targets = s.players.filter(p => p.name !== myName);
-    }
+        let targets = [];
+        if (s.phase === 'finalVoting') {
+            targets = s.players.filter(p => s.top2 && s.top2.includes(p.name));
+        } else {
+            targets = s.players.filter(p => p.name !== myName);
+        }
 
-    targets.forEach(p => {
-      const card = document.createElement('div');
-      card.className = 'vote-card' + (myVote === p.name ? ' selected' : '');
-      card.innerHTML = `<strong>${p.name}</strong>`;
-      card.onclick = () => {
-        myVote = p.name;
-        socket.emit('vote', { votedName: p.name });
-        document.querySelectorAll('.vote-card').forEach(c => c.classList.remove('selected'));
-        card.classList.add('selected');
-      };
-      grid.appendChild(card);
-    });
-    
-    if (s.phase !== 'finalVoting') {
-        const abstainCard = document.createElement('div');
-        abstainCard.className = 'vote-card' + (myVote === 'ABSTAIN' ? ' selected' : '');
-        abstainCard.style.borderColor = 'var(--muted)';
-        abstainCard.innerHTML = `<strong style="color:var(--muted)">Wstrzymuję się</strong>`;
-        abstainCard.onclick = () => {
-            myVote = 'ABSTAIN';
-            socket.emit('vote', { votedName: 'ABSTAIN' });
+        targets.forEach(p => {
+          const card = document.createElement('div');
+          card.className = 'vote-card' + (myVote === p.name ? ' selected' : '');
+          card.innerHTML = `<strong>${p.name}</strong>`;
+          card.onclick = () => {
+            myVote = p.name;
+            socket.emit('vote', { votedName: p.name, usePowerup: isPowerupActive });
             document.querySelectorAll('.vote-card').forEach(c => c.classList.remove('selected'));
-            abstainCard.classList.add('selected');
-        };
-        grid.appendChild(abstainCard);
+            card.classList.add('selected');
+          };
+          grid.appendChild(card);
+        });
+        
+        if (s.phase !== 'finalVoting') {
+            const abstainCard = document.createElement('div');
+            abstainCard.className = 'vote-card' + (myVote === 'ABSTAIN' ? ' selected' : '');
+            abstainCard.style.borderColor = 'var(--muted)';
+            abstainCard.innerHTML = `<strong style="color:var(--muted)">Wstrzymuję się</strong>`;
+            abstainCard.onclick = () => {
+                myVote = 'ABSTAIN';
+                socket.emit('vote', { votedName: 'ABSTAIN', usePowerup: isPowerupActive });
+                document.querySelectorAll('.vote-card').forEach(c => c.classList.remove('selected'));
+                abstainCard.classList.add('selected');
+            };
+            grid.appendChild(abstainCard);
+        }
     }
-
-    const votedList = document.getElementById('voted-players-list');
-    votedList.innerHTML = '';
-    s.players.forEach(p => {
-        const hasVoted = s.votes && s.votes[p.name];
-        votedList.innerHTML += `
-          <span class="player-chip" style="background:${hasVoted ? 'rgba(0, 230, 118, 0.2)' : 'var(--accent2)'}; border: 1px solid ${hasVoted ? 'var(--green)' : 'rgba(255,255,255,0.1)'}">
-            ${p.name} ${hasVoted ? '✅' : '⏳'}
-          </span>`;
-    });
   }
 
   if (s.phase === 'votingResults') {
@@ -645,6 +701,7 @@ socket.on('state', s => {
     list.innerHTML = '';
     tallyList.innerHTML = '';
     myVote = null;
+    isPowerupActive = false; // reset na wszelki wypadek
     
     const tally = {};
 
@@ -659,9 +716,12 @@ socket.on('state', s => {
         if (change > 0) color = 'var(--green)';
         else if (change < 0) color = 'var(--accent)';
         
+        // ZMIANA: Pokazujemy ikonkę, jeśli gracz użył powerupa w tej rundzie
+        let pwHtml = (s.powerupsThisRound && s.powerupsThisRound[voter]) ? '<span style="color:var(--yellow); margin-left:8px;" title="Użyto PowerUPa!">🌟x2</span>' : '';
+
         list.innerHTML += `
           <div class="vote-result-row">
-            <span><strong>${voter}</strong> → ${votedText}</span>
+            <span><strong>${voter}</strong>${pwHtml} → ${votedText}</span>
             <span style="color:${color}; font-weight:800">${change > 0 ? '+' : ''}${change} pkt</span>
           </div>`;
       });
@@ -779,7 +839,28 @@ socket.on('state', s => {
         }
     }
 
-    renderScoreboard('final-scoreboard', s.players);
+    const tableFinal = document.getElementById('final-scoreboard');
+    let htmlFinal = `
+      <div style="display:flex; justify-content:space-between; font-weight:bold; border-bottom:2px solid #555; padding-bottom:10px; margin-bottom:15px; color:var(--blue);">
+        <span style="flex:0.5;">Lp.</span>
+        <span style="flex:2;">Gracz</span>
+        <span style="flex:1.5; text-align:right;">Suma punktów</span>
+        ${s.showDelta ? '<span style="flex:1.5; text-align:right;">Od ost. głosowania</span>' : ''}
+      </div>`;
+    
+    s.players.forEach((p, i) => {
+      const oldScore = s.lastVoteScores ? (s.lastVoteScores[p.name] || 0) : 0;
+      const diff = p.score - oldScore;
+
+      htmlFinal += `
+        <div class="score-row">
+           <span style="flex:0.5;">${i+1}.</span>
+           <span style="flex:2;">${p.name}</span>
+           <span style="flex:1.5; text-align:right; color:var(--yellow); font-weight:bold;">${p.score} pkt</span>
+           ${s.showDelta ? `<span style="flex:1.5; text-align:right; color:var(--green); font-weight:bold;">+${diff} pkt</span>` : ''}
+        </div>`;
+    });
+    tableFinal.innerHTML = htmlFinal;
 
     if (currentPhase !== 'finalSummary') {
         if (typeof confetti === 'function') {
@@ -868,10 +949,10 @@ socket.on('timerStart', ({ duration, phase, correct, message }) => {
 
 socket.on('votingTimer', ({ timeLeft }) => {
   const el = document.getElementById('vote-timer');
-  if(el) el.textContent = timeLeft;
+  if(el) el.textContent = timeLeft + 's'; 
   
   const elSpeech = document.getElementById('speech-timer');
-  if(elSpeech) elSpeech.textContent = timeLeft;
+  if(elSpeech) elSpeech.textContent = timeLeft + 's';
 });
 
 function renderScoreboard(elId, players) {

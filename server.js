@@ -14,10 +14,8 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
-// POPRAWKA 2: Usunięto rundę 9 z głosowania
 const VOTING_ROUNDS = [2, 4, 6, 8, 10];
 
-// ZMIANA: Tablica niedozwolonych słów w nicku (możesz dopisywać kolejne)
 const FORBIDDEN_WORDS = ['cwel', 'nigger', 'czarnuch'];
 
 let gameState = {
@@ -29,6 +27,7 @@ let gameState = {
   totalRounds: 11,
   roundData: null,
   liarName: null,
+  previousLiarName: null, 
   votes: {},
   votingTimeLeft: 0,
   votingInterval: null,
@@ -45,8 +44,8 @@ let gameState = {
   speechPlayerName: null,
   isPaused: false,
   lastVotingChanges: {},
-  // POPRAWKA 5: Dodana zmienna do śledzenia punktów sprzed ostatniego głosowania
   lastVoteScores: {},
+  powerupsThisRound: {}, // ZMIANA: Śledzenie kto użył powerupa w obecnym głosowaniu
   isAnswerLocked: false,
   hiddenLiarPoints: 0,
   lastRecoveredPoints: 0,
@@ -169,19 +168,19 @@ function matchAnswer(input, answers, revealedIdxs) {
   for (let i = 0; i < answers.length; i++) {
     if (revealedIdxs.includes(i)) continue;
     const normAnswer = normalize(answers[i].text);
+    
     if (normAnswer === normInput) return i;
     if (normInput.length >= 4 && (normAnswer.startsWith(normInput) || normAnswer.split(' ').some(w => w.startsWith(normInput)))) return i;
-    if (normInput.length >= 3) {
-        const threshold = Math.min(3, Math.max(1, Math.floor(Math.min(normInput.length, normAnswer.length) * 0.3)));
-        if (levenshtein(normInput, normAnswer) <= threshold) return i;
-        if (normAnswer.includes(' ')) {
-            const words = normAnswer.split(' ');
-            for (let w of words) {
-                if (w.length >= 4) {
-                    const wordThreshold = Math.min(2, Math.max(1, Math.floor(Math.min(normInput.length, w.length) * 0.3)));
-                    if (levenshtein(normInput, w) <= wordThreshold) return i;
-                }
-            }
+    
+    // ZMIANA: Zaostrzony algorytm Levenshteina. Max 20% pomyłek (zamiast 30%), a przy 2 błędach wymagana zgodność pierwszej litery
+    if (normInput.length >= 4) {
+        const threshold = Math.min(2, Math.max(1, Math.floor(Math.min(normInput.length, normAnswer.length) * 0.2)));
+        const dist = levenshtein(normInput, normAnswer);
+        
+        if (dist <= threshold) {
+            // Zabezpieczenie przed słowami o podobnych końcówkach ("makowiec" vs "naukowiec")
+            if (dist === 2 && normInput[0] !== normAnswer[0]) continue;
+            return i;
         }
     }
   }
@@ -202,13 +201,13 @@ function sortPlayersArray(playersArr) {
 
 function getPlayerList() {
   return sortPlayersArray(Object.values(gameState.players)).map(p => ({
-    name: p.name, score: p.score, connected: p.connected, isLiar: p.isLiar, wrongAnswers: p.wrongAnswers
+    name: p.name, score: p.score, connected: p.connected, isLiar: p.isLiar, wrongAnswers: p.wrongAnswers, powerupUsed: p.powerupUsed
   }));
 }
 
 function broadcastState() {
-  // POPRAWKA 5: Dodajemy informację do frontendu, czy po tej rundzie nastąpi głosowanie (żeby wiedział czy pokazać deltę punktową)
   const isVotingNext = VOTING_ROUNDS.includes(gameState.currentRound);
+  const showDelta = (isVotingNext && gameState.currentRound > 2) || gameState.phase === 'finalSummary';
 
   const base = {
     phase: gameState.phase,
@@ -219,12 +218,14 @@ function broadcastState() {
     isPaused: gameState.isPaused,
     lastVotingChanges: gameState.lastVotingChanges,
     lastRecoveredPoints: gameState.lastRecoveredPoints,
+    powerupsThisRound: gameState.powerupsThisRound, // Wysyłamy informację, kto użył w tej rundzie powerupa
     endReason: gameState.endReason,
     finalVotes: gameState.finalVotes, 
     finalTally: gameState.finalTally,
     rulesUnderstood: gameState.rulesUnderstood,
-    lastVoteScores: gameState.lastVoteScores, // POPRAWKA 5 c.d.
-    isVotingNext: isVotingNext
+    lastVoteScores: gameState.lastVoteScores,
+    isVotingNext: isVotingNext,
+    showDelta: showDelta 
   };
 
   if (gameState.roundData) {
@@ -238,7 +239,6 @@ function broadcastState() {
     base.top2 = gameState.top2;
   }
 
-  // POPRAWKA 5: Upewniamy się, że w nowej fazie 'scoreboard' też wysyłamy wszystkie odpowiedzi
   if (['roundSummary', 'scoreboard', 'voting', 'votingResults', 'revealingAnswers'].includes(gameState.phase) && gameState.roundData) {
     base.allAnswers = gameState.roundData.answers;
   }
@@ -255,8 +255,7 @@ function broadcastState() {
 
   Object.values(gameState.players).forEach(player => {
     if (!player.connected || !player.socketId) return;
-    const payload = { ...base, myName: player.name };
-    // POPRAWKA 5: Wysyłamy liarAnswers też w fazie scoreboard
+    const payload = { ...base, myName: player.name, myPowerupUsed: player.powerupUsed };
     if (player.isLiar && gameState.roundData && ['round', 'revealingAnswers', 'roundSummary', 'scoreboard'].includes(gameState.phase)) {
       payload.liarAnswers = gameState.roundData.answers;
     }
@@ -281,7 +280,6 @@ function startTurnTimer() {
 
   const currentName = gameState.roundOrder[gameState.currentTurnIndex];
   if (!currentName) {
-    // POPRAWKA 4: Nawet w 11 rundzie przechodzimy do startRoundSummary, żeby odkryć odpowiedzi
     startRoundSummary();
     return;
   }
@@ -326,7 +324,6 @@ function nextTurn() {
   }
   gameState.currentTurnIndex++;
   
-  // POPRAWKA 4: Runda 11 idzie do startRoundSummary po wszystkich odpowiedziach
   if (gameState.currentRound === 11) {
     if (gameState.currentTurnIndex >= 6 || gameState.roundData.revealedAnswers.length >= 10) {
         startRoundSummary();
@@ -369,7 +366,6 @@ function startRevealSequence() {
       step++;
       setTimeout(revealNext, 2000);
     } else {
-      // POPRAWKA 5: Po odkryciu idziemy do fazy Scoreboard
       gameState.phase = 'scoreboard';
       broadcastState();
       runTransition(15, () => { postRoundRouting(); });
@@ -379,7 +375,6 @@ function startRevealSequence() {
 }
 
 function postRoundRouting() {
-  // POPRAWKA 4: Jeśli to runda 11, po scoreboardzie idziemy do przemówień
   if (gameState.currentRound === 11) {
     endRound11();
   } else if (VOTING_ROUNDS.includes(gameState.currentRound)) {
@@ -392,6 +387,7 @@ function postRoundRouting() {
 function startVoting() {
   gameState.phase = 'voting';
   gameState.votes = {};
+  gameState.powerupsThisRound = {}; // Reset aktywnych powerupów
   gameState.votingTimeLeft = 90;
   broadcastState();
   if (gameState.votingInterval) clearInterval(gameState.votingInterval);
@@ -428,6 +424,7 @@ function resolveVoting() {
   let isRound10 = (gameState.currentRound === 10);
   
   let recovered = 0;
+  let liarMultiplier = gameState.powerupsThisRound[gameState.liarName] ? 2 : 1;
 
   if (liarCaught) {
     if (gameState.players[gameState.liarName]) {
@@ -441,8 +438,10 @@ function resolveVoting() {
     Object.entries(gameState.votes).forEach(([voterName, votedFor]) => {
       if (votedFor === gameState.liarName && voterName !== gameState.liarName) {
           if(gameState.players[voterName]) {
-              gameState.players[voterName].score += 500;
-              changes[voterName] = 500;
+              // ZMIANA: Mnożnik za powerupa
+              let mult = gameState.powerupsThisRound[voterName] ? 2 : 1;
+              gameState.players[voterName].score += 500 * mult;
+              changes[voterName] = 500 * mult;
           }
       }
     });
@@ -453,12 +452,15 @@ function resolveVoting() {
     Object.entries(gameState.votes).forEach(([voterName, votedFor]) => {
       if (votedFor === accusedName) {
           if(gameState.players[voterName]) {
-              gameState.players[voterName].score = Math.max(0, gameState.players[voterName].score - 500);
-              changes[voterName] = -500;
+              // ZMIANA: Mnożnik ujemny za powerupa (ryzyko!)
+              let mult = gameState.powerupsThisRound[voterName] ? 2 : 1;
+              gameState.players[voterName].score = Math.max(0, gameState.players[voterName].score - 500 * mult);
+              changes[voterName] = -500 * mult;
           }
       }
     });
-    gameState.hiddenLiarPoints += 1000;
+    // ZMIANA: Dodajemy 700 pkt do puli Kłamczucha (zamiast 1000). Jeśli kłamczuch użył powerupa, dodajemy podwojoną wartość.
+    gameState.hiddenLiarPoints += 700 * liarMultiplier;
   }
 
   if (isRound10 && gameState.hiddenLiarPoints > 0 && !liarCaught) {
@@ -475,13 +477,11 @@ function resolveVoting() {
   gameState.liarHistory.push({ round: gameState.currentRound, liarName: gameState.liarName, caught: liarCaught, accusedName: accusedName || 'Brak' });
 
   if (liarCaught) {
-    // POPRAWKA 6: Zabezpieczenie przed podwójnym losem tej samej osoby
     const previousLiar = gameState.liarName;
     Object.values(gameState.players).forEach(p => p.isLiar = false);
     gameState.liarName = pickNewLiar(previousLiar);
   }
 
-  // POPRAWKA 5: Po udanym głosowaniu zapisujemy obecny stan punktów (jako baseline do następnej delty)
   gameState.lastVoteScores = {};
   Object.values(gameState.players).forEach(p => {
       gameState.lastVoteScores[p.name] = p.score;
@@ -494,12 +494,8 @@ function resolveVoting() {
 }
 
 function pickNewLiar(excludeName, pool) {
-  // POPRAWKA 6 c.d.: Jeśli nie podano puli (zwykła runda), losuj z wszystkich oprócz poprzedniego kłamczucha
   const names = pool || Object.keys(gameState.players).filter(n => n !== excludeName);
-  
-  // Zabezpieczenie na wypadek np. gry 1-osobowej (nie powinno mieć miejsca)
   const finalNames = names.length > 0 ? names : Object.keys(gameState.players);
-  
   const chosen = finalNames[Math.floor(Math.random() * finalNames.length)];
   if (gameState.players[chosen]) gameState.players[chosen].isLiar = true;
   return chosen;
@@ -514,11 +510,13 @@ function startNextRound() {
   Object.values(gameState.players).forEach(p => p.wrongAnswers = 0);
 
   if (gameState.currentRound === 1) {
-    Object.values(gameState.players).forEach(p => p.isLiar = false);
+    Object.values(gameState.players).forEach(p => {
+        p.isLiar = false;
+        p.powerupUsed = false; // Reset powerupów na początku gry
+    });
     gameState.liarName = pickNewLiar(null);
     gameState.hiddenLiarPoints = 0;
 
-    // POPRAWKA 5: Startowy snapshot punktów (same zera)
     gameState.lastVoteScores = {};
     Object.values(gameState.players).forEach(p => { gameState.lastVoteScores[p.name] = 0; });
   }
@@ -576,28 +574,21 @@ function endRound11() {
   broadcastState();
 
   if (gameState.votingInterval) clearInterval(gameState.votingInterval);
+  
   gameState.votingInterval = setInterval(() => {
     if (gameState.isPaused) return;
     gameState.votingTimeLeft--;
     io.emit('votingTimer', { timeLeft: gameState.votingTimeLeft });
     
     if (gameState.votingTimeLeft <= 0) {
-      clearInterval(gameState.votingInterval);
-      const secondSpeaker = gameState.top2.find(n => n !== firstSpeaker);
+      const secondSpeaker = sortedFinalists[1].name;
       if (gameState.speechPlayerName === firstSpeaker) {
         gameState.speechPlayerName = secondSpeaker;
         gameState.votingTimeLeft = 45;
         broadcastState();
-        
-        gameState.votingInterval = setInterval(() => {
-          if (gameState.isPaused) return;
-          gameState.votingTimeLeft--;
-          io.emit('votingTimer', { timeLeft: gameState.votingTimeLeft });
-          if (gameState.votingTimeLeft <= 0) {
-            clearInterval(gameState.votingInterval);
-            startFinalVoting();
-          }
-        }, 1000);
+      } else {
+        clearInterval(gameState.votingInterval);
+        startFinalVoting();
       }
     }
   }, 1000);
@@ -606,8 +597,9 @@ function endRound11() {
 function startFinalVoting() {
   gameState.phase = 'finalVoting';
   gameState.votes = {};
-  gameState.votingTimeLeft = 45;
+  gameState.votingTimeLeft = 45; 
   broadcastState();
+  if (gameState.votingInterval) clearInterval(gameState.votingInterval);
   gameState.votingInterval = setInterval(() => {
     if (gameState.isPaused) return;
     gameState.votingTimeLeft--;
@@ -624,6 +616,15 @@ function resolveFinalVoting() {
   gameState.phase = 'finalSummary';
   gameState.endReason = 'normal_end'; 
   
+  Object.values(gameState.players).forEach(p => {
+      if (p.connected && !gameState.top2.includes(p.name)) {
+          if (!gameState.votes[p.name]) {
+              const randomChoice = gameState.top2[Math.floor(Math.random() * 2)];
+              gameState.votes[p.name] = randomChoice;
+          }
+      }
+  });
+
   const tally = {};
   gameState.top2.forEach(name => tally[name] = 0); 
   
@@ -688,7 +689,7 @@ io.on('connection', (socket) => {
     } else {
       if (gameState.phase !== 'lobby') { socket.emit('error', 'Gra już trwa.'); return; }
       if (Object.keys(gameState.players).length >= 7) { socket.emit('error', 'Maksymalna liczba graczy osiągnięta.'); return; }
-      gameState.players[normName] = { name: normName, socketId: socket.id, score: 0, isLiar: false, connected: true, wrongAnswers: 0, pointsHistory: {} };
+      gameState.players[normName] = { name: normName, socketId: socket.id, score: 0, isLiar: false, connected: true, wrongAnswers: 0, pointsHistory: {}, powerupUsed: false };
       broadcastState();
     }
   });
@@ -711,7 +712,7 @@ io.on('connection', (socket) => {
     gameState.endReason = null; 
     gameState.isPaused = false;
     gameState.rulesUnderstood = {};
-    Object.values(gameState.players).forEach(p => { p.score = 0; p.isLiar = false; p.wrongAnswers = 0; p.pointsHistory = {}; });
+    Object.values(gameState.players).forEach(p => { p.score = 0; p.isLiar = false; p.wrongAnswers = 0; p.pointsHistory = {}; p.powerupUsed = false; });
     broadcastState();
   });
 
@@ -794,7 +795,6 @@ io.on('connection', (socket) => {
   socket.on('adminOverride', ({ answerIndex }) => {
     if (socket.id !== gameState.adminSocketId || !gameState.lastWrongAnswer || gameState.phase !== 'round') return;
     
-    // POPRAWKA 1: Nie przerywamy obecnej tury gracza (usunięto clearTimeout(gameState.revealTimer))
     const playerName = gameState.lastWrongAnswer.playerName;
     const player = gameState.players[playerName];
     const rd = gameState.roundData;
@@ -807,28 +807,37 @@ io.on('connection', (socket) => {
       const wIdx = rd.wrongAnswersList.findIndex(w => w.text === gameState.lastWrongAnswer.text && w.byName === playerName);
       if (wIdx !== -1) rd.wrongAnswersList.splice(wIdx, 1);
 
-      // POPRAWKA 1 c.d.: Wysyłamy ciche powiadomienie do wszystkich, żeby tura dalej trwała
       io.emit('adminNotification', { message: `Host uznał odpowiedź gracza ${playerName}: ${ans.text} (+${ans.points} pkt)` });
       
       gameState.lastWrongAnswer = null;
-      broadcastState(); // Aktualizacja widoku kłamczucha i listy odpowiedzi u wszystkich
+      broadcastState(); 
     }
   });
 
-  socket.on('vote', ({ votedName }) => {
+  socket.on('vote', ({ votedName, usePowerup }) => {
     if (!['voting', 'finalVoting'].includes(gameState.phase)) return;
     const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
     if (!player) return;
     
+    // ZMIANA: Obsługa aktywacji PowerUPA
+    if (usePowerup && !player.powerupUsed && gameState.phase === 'voting') {
+        player.powerupUsed = true;
+        gameState.powerupsThisRound[player.name] = true;
+    }
+
     gameState.votes[player.name] = votedName;
     broadcastState();
+  });
 
-    const expectedVotes = Object.values(gameState.players).filter(p => p.connected).length;
-    const currentVotes = Object.keys(gameState.votes).filter(n => gameState.players[n] && gameState.players[n].connected).length;
-
-    if (currentVotes >= expectedVotes && expectedVotes > 0) {
-       if (gameState.phase === 'voting') resolveVoting();
-       else if (gameState.phase === 'finalVoting') resolveFinalVoting();
+  socket.on('kickPlayer', ({ playerName }) => {
+    if (socket.id !== gameState.adminSocketId) return;
+    const p = gameState.players[playerName];
+    if (p) {
+      if (p.socketId) {
+        io.to(p.socketId).emit('kicked', 'Zostałeś wyrzucony z gry przez Hosta.');
+      }
+      delete gameState.players[playerName];
+      broadcastState();
     }
   });
 
@@ -844,13 +853,7 @@ io.on('connection', (socket) => {
             if (gameState.phase === 'preFinal') {
                 const currentReady = Object.keys(gameState.rulesUnderstood).filter(n => gameState.players[n] && gameState.players[n].connected).length;
                 if (currentReady >= expected) setupRound11();
-            } else if (['voting', 'finalVoting'].includes(gameState.phase)) {
-                const currentVotes = Object.keys(gameState.votes).filter(n => gameState.players[n] && gameState.players[n].connected).length;
-                if (currentVotes >= expected) {
-                    if (gameState.phase === 'voting') resolveVoting();
-                    else resolveFinalVoting();
-                }
-            }
+            } 
         }
     }
   });
