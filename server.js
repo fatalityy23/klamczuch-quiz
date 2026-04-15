@@ -45,7 +45,7 @@ let gameState = {
   isPaused: false,
   lastVotingChanges: {},
   lastVoteScores: {},
-  powerupsThisRound: {}, // ZMIANA: Śledzenie kto użył powerupa w obecnym głosowaniu
+  powerupsThisRound: {}, 
   isAnswerLocked: false,
   hiddenLiarPoints: 0,
   lastRecoveredPoints: 0,
@@ -169,16 +169,19 @@ function matchAnswer(input, answers, revealedIdxs) {
     if (revealedIdxs.includes(i)) continue;
     const normAnswer = normalize(answers[i].text);
     
+    // Dokładne dopasowanie
     if (normAnswer === normInput) return i;
-    if (normInput.length >= 4 && (normAnswer.startsWith(normInput) || normAnswer.split(' ').some(w => w.startsWith(normInput)))) return i;
     
-    // ZMIANA: Zaostrzony algorytm Levenshteina. Max 20% pomyłek (zamiast 30%), a przy 2 błędach wymagana zgodność pierwszej litery
-    if (normInput.length >= 4) {
-        const threshold = Math.min(2, Math.max(1, Math.floor(Math.min(normInput.length, normAnswer.length) * 0.2)));
+    // ZMIANA: Zmniejszono limit z 4 na 3 litery, by móc "łapać" słowa jak "mem" (jako początek "memy")
+    if (normInput.length >= 3 && (normAnswer.startsWith(normInput) || normAnswer.split(' ').some(w => w.startsWith(normInput)))) return i;
+    
+    // ZMIANA: Od 3 liter pozwalamy na ewentualne literówki przez Levenshteina 
+    // Mnożnik podniesiony lekko (z 0.2 na 0.25) by przy 3 literach pozwalać na odległość 1.
+    if (normInput.length >= 3) {
+        const threshold = Math.min(2, Math.max(1, Math.floor(Math.min(normInput.length, normAnswer.length) * 0.25)));
         const dist = levenshtein(normInput, normAnswer);
         
         if (dist <= threshold) {
-            // Zabezpieczenie przed słowami o podobnych końcówkach ("makowiec" vs "naukowiec")
             if (dist === 2 && normInput[0] !== normAnswer[0]) continue;
             return i;
         }
@@ -218,7 +221,7 @@ function broadcastState() {
     isPaused: gameState.isPaused,
     lastVotingChanges: gameState.lastVotingChanges,
     lastRecoveredPoints: gameState.lastRecoveredPoints,
-    powerupsThisRound: gameState.powerupsThisRound, // Wysyłamy informację, kto użył w tej rundzie powerupa
+    powerupsThisRound: gameState.powerupsThisRound, 
     endReason: gameState.endReason,
     finalVotes: gameState.finalVotes, 
     finalTally: gameState.finalTally,
@@ -387,7 +390,7 @@ function postRoundRouting() {
 function startVoting() {
   gameState.phase = 'voting';
   gameState.votes = {};
-  gameState.powerupsThisRound = {}; // Reset aktywnych powerupów
+  gameState.powerupsThisRound = {}; 
   gameState.votingTimeLeft = 90;
   broadcastState();
   if (gameState.votingInterval) clearInterval(gameState.votingInterval);
@@ -438,7 +441,6 @@ function resolveVoting() {
     Object.entries(gameState.votes).forEach(([voterName, votedFor]) => {
       if (votedFor === gameState.liarName && voterName !== gameState.liarName) {
           if(gameState.players[voterName]) {
-              // ZMIANA: Mnożnik za powerupa
               let mult = gameState.powerupsThisRound[voterName] ? 2 : 1;
               gameState.players[voterName].score += 500 * mult;
               changes[voterName] = 500 * mult;
@@ -452,14 +454,12 @@ function resolveVoting() {
     Object.entries(gameState.votes).forEach(([voterName, votedFor]) => {
       if (votedFor === accusedName) {
           if(gameState.players[voterName]) {
-              // ZMIANA: Mnożnik ujemny za powerupa (ryzyko!)
               let mult = gameState.powerupsThisRound[voterName] ? 2 : 1;
               gameState.players[voterName].score = Math.max(0, gameState.players[voterName].score - 500 * mult);
               changes[voterName] = -500 * mult;
           }
       }
     });
-    // ZMIANA: Dodajemy 700 pkt do puli Kłamczucha (zamiast 1000). Jeśli kłamczuch użył powerupa, dodajemy podwojoną wartość.
     gameState.hiddenLiarPoints += 700 * liarMultiplier;
   }
 
@@ -512,7 +512,7 @@ function startNextRound() {
   if (gameState.currentRound === 1) {
     Object.values(gameState.players).forEach(p => {
         p.isLiar = false;
-        p.powerupUsed = false; // Reset powerupów na początku gry
+        p.powerupUsed = false; 
     });
     gameState.liarName = pickNewLiar(null);
     gameState.hiddenLiarPoints = 0;
@@ -819,7 +819,6 @@ io.on('connection', (socket) => {
     const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
     if (!player) return;
     
-    // ZMIANA: Obsługa aktywacji PowerUPA
     if (usePowerup && !player.powerupUsed && gameState.phase === 'voting') {
         player.powerupUsed = true;
         gameState.powerupsThisRound[player.name] = true;
