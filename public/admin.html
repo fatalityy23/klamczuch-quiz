@@ -89,7 +89,12 @@ function adminLogin() {
 }
 
 socket.on('state', s => {
-  document.getElementById('status-phase').textContent = s.phase + (s.isPaused ? ' (PAUZA)' : '');
+  let statusText = s.phase;
+  if (s.phase === 'battlePrep') statusText += ' (PRZYGOTOWANIE DO BITWY)';
+  if (s.phase === 'battle') statusText += ' (BITWA O HASŁO!)';
+  
+  document.getElementById('status-phase').textContent = statusText + (s.isPaused ? ' (PAUZA)' : '');
+  
   const pauseBtn = document.getElementById('pause-btn');
   pauseBtn.textContent = s.isPaused ? '▶ Wznów' : '⏸ Pauza';
   pauseBtn.style.background = s.isPaused ? 'var(--green)' : 'var(--blue)';
@@ -109,7 +114,6 @@ socket.on('state', s => {
     });
   }
 
-  // ZMIANA: Dodano podgląd PowerUPów przy nickach graczy w panelu
   document.getElementById('players-list').innerHTML = (s.players || []).map(p => {
     const powerupIcon = p.powerupUsed 
         ? '<span class="powerup-icon powerup-used" title="PowerUP wykorzystany">🌟</span>' 
@@ -126,7 +130,7 @@ socket.on('state', s => {
   }).join('');
 
   const ovPanel = document.getElementById('override-panel');
-  if (s.lastWrongAnswer && s.phase === 'round') {
+  if (s.lastWrongAnswer && (s.phase === 'round' || s.phase === 'battle')) {
     ovPanel.style.display = 'block';
     document.getElementById('ov-player').textContent = s.lastWrongAnswer.playerName;
     document.getElementById('ov-answer').textContent = s.lastWrongAnswer.text;

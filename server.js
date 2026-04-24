@@ -52,7 +52,14 @@ let gameState = {
   endReason: null,
   finalVotes: null,   
   finalTally: null,
-  rulesUnderstood: {} 
+  rulesUnderstood: {},
+  
+  // NOWE ZMIENNE DO BITWY I FINAŁU
+  battlingPlayers: [],
+  disqualifiedFromBattle: [],
+  spectators: [],
+  finalScenario: null,
+  finalWinner: null
 };
 
 let globalTransitionInterval = null;
@@ -169,14 +176,10 @@ function matchAnswer(input, answers, revealedIdxs) {
     if (revealedIdxs.includes(i)) continue;
     const normAnswer = normalize(answers[i].text);
     
-    // Dokładne dopasowanie
     if (normAnswer === normInput) return i;
     
-    // ZMIANA: Zmniejszono limit z 4 na 3 litery, by móc "łapać" słowa jak "mem" (jako początek "memy")
     if (normInput.length >= 3 && (normAnswer.startsWith(normInput) || normAnswer.split(' ').some(w => w.startsWith(normInput)))) return i;
     
-    // ZMIANA: Od 3 liter pozwalamy na ewentualne literówki przez Levenshteina 
-    // Mnożnik podniesiony lekko (z 0.2 na 0.25) by przy 3 literach pozwalać na odległość 1.
     if (normInput.length >= 3) {
         const threshold = Math.min(2, Math.max(1, Math.floor(Math.min(normInput.length, normAnswer.length) * 0.25)));
         const dist = levenshtein(normInput, normAnswer);
@@ -204,13 +207,13 @@ function sortPlayersArray(playersArr) {
 
 function getPlayerList() {
   return sortPlayersArray(Object.values(gameState.players)).map(p => ({
-    name: p.name, score: p.score, connected: p.connected, isLiar: p.isLiar, wrongAnswers: p.wrongAnswers, powerupUsed: p.powerupUsed
+    name: p.name, score: p.score, connected: p.connected, isLiar: p.isLiar, wrongAnswers: p.wrongAnswers, powerupUsed: p.powerupUsed, pointsSinceLastVote: p.pointsSinceLastVote
   }));
 }
 
 function broadcastState() {
   const isVotingNext = VOTING_ROUNDS.includes(gameState.currentRound);
-  const showDelta = (isVotingNext && gameState.currentRound > 2) || gameState.phase === 'finalSummary';
+  const showDelta = (isVotingNext && gameState.currentRound > 2) || gameState.phase === 'finalSummary' || gameState.phase === 'voting' || gameState.phase === 'finalVoting';
 
   const base = {
     phase: gameState.phase,
@@ -228,7 +231,14 @@ function broadcastState() {
     rulesUnderstood: gameState.rulesUnderstood,
     lastVoteScores: gameState.lastVoteScores,
     isVotingNext: isVotingNext,
-    showDelta: showDelta 
+    showDelta: showDelta,
+    
+    // Zmienne bitwy i finału
+    battlingPlayers: gameState.battlingPlayers,
+    disqualifiedFromBattle: gameState.disqualifiedFromBattle,
+    spectators: gameState.spectators,
+    finalScenario: gameState.finalScenario,
+    finalWinner: gameState.finalWinner
   };
 
   if (gameState.roundData) {
@@ -259,7 +269,7 @@ function broadcastState() {
   Object.values(gameState.players).forEach(player => {
     if (!player.connected || !player.socketId) return;
     const payload = { ...base, myName: player.name, myPowerupUsed: player.powerupUsed };
-    if (player.isLiar && gameState.roundData && ['round', 'revealingAnswers', 'roundSummary', 'scoreboard'].includes(gameState.phase)) {
+    if (player.isLiar && gameState.roundData && ['round', 'revealingAnswers', 'roundSummary', 'scoreboard', 'battlePrep', 'battle'].includes(gameState.phase)) {
       payload.liarAnswers = gameState.roundData.answers;
     }
     io.to(player.socketId).emit('state', payload);
@@ -311,6 +321,10 @@ function showNoAnswer(playerName) {
       gameState.revealTimer = setTimeout(() => {
           gameState.endReason = 'mistakes';
           gameState.phase = 'finalSummary';
+          
+          // Kto z finalistów wygrywa przez pomyłkę rywala?
+          const winner = gameState.top2.find(n => n !== playerName) || playerName;
+          gameState.finalWinner = winner;
           broadcastState();
       }, 4000);
       return; 
@@ -318,6 +332,45 @@ function showNoAnswer(playerName) {
   }
   io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Czas minął! Brak odpowiedzi.' });
   gameState.revealTimer = setTimeout(() => { nextTurn(); }, 4000);
+}
+
+// NOWA FUNKCJA - START PRZYGOTOWAŃ DO BITWY
+function startBattlePrep(battlers) {
+    gameState.phase = 'battlePrep';
+    gameState.battlingPlayers = battlers;
+    gameState.disqualifiedFromBattle = [];
+    gameState.spectators = Object.keys(gameState.players).filter(p => !battlers.includes(p));
+    gameState.isAnswerLocked = true;
+    
+    broadcastState();
+    
+    io.emit('timerStart', { duration: 5, phase: 'battlePrep', message: 'Walka o 10. hasło! Przygotuj się!' });
+    
+    setTimeout(() => {
+        if(gameState.isPaused) {
+           // W przypadku pauzy czekamy, uproszczenie
+        }
+        startBattle();
+    }, 5000);
+}
+
+// NOWA FUNKCJA - START BITWY WŁAŚCIWEJ
+function startBattle() {
+    gameState.phase = 'battle';
+    gameState.isAnswerLocked = false;
+    gameState.turnTimeLeft = 25; 
+    broadcastState();
+    
+    io.emit('timerStart', { duration: 25, phase: 'battle' });
+    
+    gameState.turnInterval = setInterval(() => {
+        if (gameState.isPaused) return;
+        gameState.turnTimeLeft--;
+        if (gameState.turnTimeLeft <= 0) {
+            clearInterval(gameState.turnInterval);
+            startRoundSummary();
+        }
+    }, 1000);
 }
 
 function nextTurn() {
@@ -332,10 +385,24 @@ function nextTurn() {
         startRoundSummary();
     }
     else { broadcastState(); startTurnTimer(); }
-  } else {
-    if (gameState.currentTurnIndex >= gameState.roundOrder.length || gameState.roundData.revealedAnswers.length >= 10) startRoundSummary();
-    else { broadcastState(); startTurnTimer(); }
+    return;
+  } 
+  
+  // LOGIKA ZWYKŁEJ RUNDY - SPRAWDZANIE BITWY (9 HASEŁ)
+  const remaining = [...new Set(gameState.roundOrder.slice(gameState.currentTurnIndex))];
+  
+  if (gameState.roundData.revealedAnswers.length === 9 && remaining.length > 0 && !['battlePrep', 'battle'].includes(gameState.phase)) {
+      if (remaining.length === 1) {
+          // Został tylko jeden gracz, zwykła tura
+      } else {
+          // Zostało kilku graczy, którzy jeszcze nie mieli 2. kolejki -> BITWA
+          startBattlePrep(remaining);
+          return;
+      }
   }
+
+  if (gameState.currentTurnIndex >= gameState.roundOrder.length || gameState.roundData.revealedAnswers.length >= 10) startRoundSummary();
+  else { broadcastState(); startTurnTimer(); }
 }
 
 function startRoundSummary() {
@@ -436,6 +503,11 @@ function resolveVoting() {
             recovered = gameState.hiddenLiarPoints;
             changes[gameState.liarName] = recovered; 
         }
+        
+        // ZMIANA: KARA DLA KŁAMCZUCHA (50% pkt z samych odpowiedzi od ost. głosowania)
+        let penalty = Math.floor((gameState.players[gameState.liarName].pointsSinceLastVote || 0) / 2);
+        gameState.players[gameState.liarName].score = Math.max(0, gameState.players[gameState.liarName].score - penalty);
+        changes[gameState.liarName] = (changes[gameState.liarName] || 0) - penalty;
     }
     
     Object.entries(gameState.votes).forEach(([voterName, votedFor]) => {
@@ -485,6 +557,8 @@ function resolveVoting() {
   gameState.lastVoteScores = {};
   Object.values(gameState.players).forEach(p => {
       gameState.lastVoteScores[p.name] = p.score;
+      // ZMIANA: Resetujemy punkty zebrane od głosowania dla WSZYSTKICH
+      p.pointsSinceLastVote = 0;
   });
 
   broadcastState();
@@ -507,12 +581,17 @@ function startNextRound() {
   
   gameState.currentRound++;
   gameState.lastVotingChanges = {};
+  gameState.battlingPlayers = [];
+  gameState.disqualifiedFromBattle = [];
+  gameState.spectators = [];
+  
   Object.values(gameState.players).forEach(p => p.wrongAnswers = 0);
 
   if (gameState.currentRound === 1) {
     Object.values(gameState.players).forEach(p => {
         p.isLiar = false;
         p.powerupUsed = false; 
+        p.pointsSinceLastVote = 0; // Inicjalizacja dla pewności
     });
     gameState.liarName = pickNewLiar(null);
     gameState.hiddenLiarPoints = 0;
@@ -531,9 +610,12 @@ function startNextRound() {
   const qIndex = gameState.currentRound - 1;
   const question = gameState.questions[qIndex] || gameState.questions[0];
   
-  gameState.roundOrder = sortPlayersArray(Object.values(gameState.players))
+  const baseOrder = sortPlayersArray(Object.values(gameState.players))
     .reverse() 
     .map(p => p.name);
+    
+  // ZMIANA: 2 Kolejki = podwójna lista dla rund 1-10
+  gameState.roundOrder = [...baseOrder, ...baseOrder];
 
   gameState.currentTurnIndex = 0;
   gameState.roundData = { questionText: question.text, answers: question.answers, revealedAnswers: [], wrongAnswersList: [] };
@@ -547,7 +629,20 @@ function setupRound11() {
   gameState.top2 = sorted.slice(0, 2).map(p => p.name);
   
   Object.values(gameState.players).forEach(p => p.isLiar = false);
-  gameState.liarName = pickNewLiar(null, gameState.top2);
+  
+  // ZMIANA: LOSOWANIE WARIANTU KŁAMCZUCHÓW W FINALE
+  const scenarios = ['0_liars', '1_liar', '2_liars'];
+  gameState.finalScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
+  
+  if (gameState.finalScenario === '1_liar') {
+      gameState.liarName = pickNewLiar(null, gameState.top2);
+  } else if (gameState.finalScenario === '2_liars') {
+      gameState.players[gameState.top2[0]].isLiar = true;
+      gameState.players[gameState.top2[1]].isLiar = true;
+      gameState.liarName = "Obaj"; // Tech oznaczenie
+  } else {
+      gameState.liarName = null;
+  }
 
   const qIndex = 10;
   const question = gameState.questions[qIndex];
@@ -555,6 +650,7 @@ function setupRound11() {
   const starter = gameState.top2[1];
   const second = gameState.top2[0];
   
+  // W finale mamy po 3 tury
   gameState.roundOrder = [starter, second, starter, second, starter, second]; 
   gameState.currentTurnIndex = 0;
   gameState.roundData = { questionText: question.text, answers: question.answers, revealedAnswers: [], wrongAnswersList: [] };
@@ -632,23 +728,26 @@ function resolveFinalVoting() {
     if(vName !== 'ABSTAIN' && tally[vName] !== undefined) tally[vName]++; 
   });
   
-  let accusedName = null;
   const p1 = gameState.top2[0];
   const p2 = gameState.top2[1];
 
-  if (tally[p1] > tally[p2]) {
-      accusedName = p1;
-  } else if (tally[p2] > tally[p1]) {
-      accusedName = p2;
+  let winnerName = null;
+  // ZMIANA: Wygrywa ten, kto ma MNIEJ głosów (jest niewinny/bardziej wiarygodny)
+  if (tally[p1] < tally[p2]) {
+      winnerName = p1;
+  } else if (tally[p2] < tally[p1]) {
+      winnerName = p2;
   } else {
-      const sortedFinalists = sortPlayersArray([gameState.players[p1], gameState.players[p2]]);
-      accusedName = sortedFinalists[1].name; 
+      // W przypadku remisu decyduje wyższa punktacja PRZED finałem
+      if (gameState.players[p1].score > gameState.players[p2].score) winnerName = p1;
+      else winnerName = p2; 
   }
-
+  
+  gameState.finalWinner = winnerName;
   gameState.finalVotes = gameState.votes;
   gameState.finalTally = tally;
 
-  gameState.liarHistory.push({ round: 11, liarName: gameState.liarName, caught: accusedName === gameState.liarName, accusedName: accusedName });
+  gameState.liarHistory.push({ round: 11, liarName: gameState.liarName, caught: false, accusedName: null }); // Historia tutaj ma mniejsze znaczenie, ale zostawiamy dla spójności
   broadcastState();
 }
 
@@ -689,7 +788,7 @@ io.on('connection', (socket) => {
     } else {
       if (gameState.phase !== 'lobby') { socket.emit('error', 'Gra już trwa.'); return; }
       if (Object.keys(gameState.players).length >= 7) { socket.emit('error', 'Maksymalna liczba graczy osiągnięta.'); return; }
-      gameState.players[normName] = { name: normName, socketId: socket.id, score: 0, isLiar: false, connected: true, wrongAnswers: 0, pointsHistory: {}, powerupUsed: false };
+      gameState.players[normName] = { name: normName, socketId: socket.id, score: 0, isLiar: false, connected: true, wrongAnswers: 0, pointsHistory: {}, powerupUsed: false, pointsSinceLastVote: 0 };
       broadcastState();
     }
   });
@@ -712,7 +811,7 @@ io.on('connection', (socket) => {
     gameState.endReason = null; 
     gameState.isPaused = false;
     gameState.rulesUnderstood = {};
-    Object.values(gameState.players).forEach(p => { p.score = 0; p.isLiar = false; p.wrongAnswers = 0; p.pointsHistory = {}; p.powerupUsed = false; });
+    Object.values(gameState.players).forEach(p => { p.score = 0; p.isLiar = false; p.wrongAnswers = 0; p.pointsHistory = {}; p.powerupUsed = false; p.pointsSinceLastVote = 0; });
     broadcastState();
   });
 
@@ -749,11 +848,55 @@ io.on('connection', (socket) => {
   });
 
   socket.on('submitAnswer', ({ answer }) => {
-    if (gameState.phase !== 'round' || gameState.isPaused || gameState.isAnswerLocked) return;
+    if (gameState.isPaused || gameState.isAnswerLocked) return;
     
-    const currentName = gameState.roundOrder[gameState.currentTurnIndex];
     const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
-    if (!player || player.name !== currentName) return;
+    if (!player) return;
+
+    // LOGIKA BITWY (Ostatnie hasło)
+    if (gameState.phase === 'battle') {
+        if (!gameState.battlingPlayers.includes(player.name) || gameState.disqualifiedFromBattle.includes(player.name)) return;
+        
+        const rd = gameState.roundData;
+        const idx = matchAnswer(answer, rd.answers, rd.revealedAnswers.map(r => r.index));
+        
+        if (idx >= 0) {
+            // Pierwszy poprawny zgarnął!
+            clearInterval(gameState.turnInterval);
+            gameState.isAnswerLocked = true;
+            const ans = rd.answers[idx];
+            
+            player.score += ans.points;
+            player.pointsHistory[ans.points] = (player.pointsHistory[ans.points] || 0) + 1; 
+            player.pointsSinceLastVote = (player.pointsSinceLastVote || 0) + ans.points;
+            
+            rd.revealedAnswers.push({ index: idx, text: ans.text, points: ans.points, byName: player.name });
+            
+            io.emit('timerStart', { duration: 4, phase: 'reveal', correct: true, message: `🏆 ${player.name} WYGRYWA BITWĘ! +${ans.points} pkt` });
+            broadcastState(); 
+            gameState.revealTimer = setTimeout(() => startRoundSummary(), 4000);
+        } else {
+            // Błędna odpowiedź eliminuje z bitwy
+            gameState.disqualifiedFromBattle.push(player.name);
+            socket.emit('timerStart', { duration: 3, phase: 'reveal', correct: false, message: 'Zła odpowiedź! Odpadasz z tej bitwy.' });
+            broadcastState(); // Aktualizujemy widok dla widzów
+            
+            // Jeśli wszyscy odpadli
+            if (gameState.disqualifiedFromBattle.length >= gameState.battlingPlayers.length) {
+                clearInterval(gameState.turnInterval);
+                gameState.isAnswerLocked = true;
+                io.emit('timerStart', { duration: 3, phase: 'reveal', correct: false, message: 'Nikt nie zgadł 10. hasła!' });
+                gameState.revealTimer = setTimeout(() => startRoundSummary(), 3000);
+            }
+        }
+        return;
+    }
+
+    // LOGIKA ZWYKŁEJ TURY
+    if (gameState.phase !== 'round') return;
+
+    const currentName = gameState.roundOrder[gameState.currentTurnIndex];
+    if (player.name !== currentName) return;
     
     gameState.isAnswerLocked = true;
     clearInterval(gameState.turnInterval);
@@ -765,6 +908,10 @@ io.on('connection', (socket) => {
       const ans = rd.answers[idx];
       player.score += ans.points;
       player.pointsHistory[ans.points] = (player.pointsHistory[ans.points] || 0) + 1; 
+      
+      // Dodajemy punkty do puli z tej rundy (na wypadek bycia złapanym kłamczuchem)
+      player.pointsSinceLastVote = (player.pointsSinceLastVote || 0) + ans.points;
+      
       rd.revealedAnswers.push({ index: idx, text: ans.text, points: ans.points, byName: player.name });
       io.emit('timerStart', { duration: 4, phase: 'reveal', correct: true, message: `Trafiłeś! +${ans.points} pkt` });
       gameState.revealTimer = setTimeout(() => nextTurn(), 4000);
@@ -780,6 +927,9 @@ io.on('connection', (socket) => {
               gameState.revealTimer = setTimeout(() => { 
                   gameState.endReason = 'mistakes';
                   gameState.phase = 'finalSummary';
+                  
+                  const winner = gameState.top2.find(n => n !== player.name) || player.name;
+                  gameState.finalWinner = winner;
                   broadcastState();
               }, 4000);
               return; 
@@ -802,6 +952,8 @@ io.on('connection', (socket) => {
     if (player && ans && !rd.revealedAnswers.some(r => r.index === answerIndex)) {
       player.score += ans.points;
       player.pointsHistory[ans.points] = (player.pointsHistory[ans.points] || 0) + 1; 
+      player.pointsSinceLastVote = (player.pointsSinceLastVote || 0) + ans.points;
+      
       rd.revealedAnswers.push({ index: answerIndex, text: ans.text, points: ans.points, byName: playerName });
       
       const wIdx = rd.wrongAnswersList.findIndex(w => w.text === gameState.lastWrongAnswer.text && w.byName === playerName);
