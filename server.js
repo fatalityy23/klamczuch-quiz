@@ -54,12 +54,12 @@ let gameState = {
   finalTally: null,
   rulesUnderstood: {},
   
-  // NOWE ZMIENNE DO BITWY I FINAŁU
   battlingPlayers: [],
   disqualifiedFromBattle: [],
   spectators: [],
   finalScenario: null,
-  finalWinner: null
+  finalWinner: null,
+  finalTieResolved: false
 };
 
 let globalTransitionInterval = null;
@@ -133,6 +133,38 @@ function getSet3() {
   ];
 }
 
+function getSet4() {
+  return [
+    { text: "Co ludzie najczęściej trzymają w szufladach?", answers: [ { text: "Ubrania", points: 1000 }, { text: "Karty", points: 900 }, { text: "Narzędzia", points: 800 }, { text: "Płyty", points: 700 }, { text: "Chusteczki", points: 600 }, { text: "Zapalniczki", points: 500 }, { text: "Książki", points: 400 }, { text: "Długopisy", points: 300 }, { text: "Papier", points: 200 }, { text: "Pieniądze", points: 100 } ] },
+    { text: "Wymień znane państwo", answers: [ { text: "Gruzja", points: 1000 }, { text: "Singapur", points: 900 }, { text: "Peru", points: 800 }, { text: "Dania", points: 700 }, { text: "Turcja", points: 600 }, { text: "Monako", points: 500 }, { text: "Australia", points: 400 }, { text: "Kanada", points: 300 }, { text: "Japonia", points: 200 }, { text: "Polska", points: 100 } ] },
+    { text: "Kultowe filmy animowane / bajki", answers: [ { text: "Auta", points: 1000 }, { text: "Potwory i Spółka", points: 900 }, { text: "Kraina Lodu", points: 800 }, { text: "Minionki", points: 700 }, { text: "Gdzie jest Nemo", points: 600 }, { text: "Toy Story", points: 500 }, { text: "Madagaskar", points: 400 }, { text: "Epoka Lodowcowa", points: 300 }, { text: "Król Lew", points: 200 }, { text: "Shrek", points: 100 } ] },
+    { text: "Kultowe polskie zespoły muzyczne", answers: [ { text: "Paktofonika", points: 1000 }, { text: "Czerwone Gitary", points: 900 }, { text: "Bajm", points: 800 }, { text: "Republika", points: 700 }, { text: "Kult", points: 600 }, { text: "Budka Suflera", points: 500 }, { text: "Maanam", points: 400 }, { text: "Lady Pank", points: 300 }, { text: "Perfect", points: 200 }, { text: "Dżem", points: 100 } ] },
+    { text: "Jak potocznie nazywamy pieniądze?", answers: [ { text: "Sałata", points: 1000 }, { text: "Flota", points: 900 }, { text: "Sos", points: 800 }, { text: "Mamona", points: 700 }, { text: "Szmal", points: 600 }, { text: "Kapusta", points: 500 }, { text: "Siano", points: 400 }, { text: "Forsa", points: 300 }, { text: "Hajs", points: 200 }, { text: "Kasa", points: 100 } ] },
+    { text: "Podaj losowe słowo z listy", answers: [ { text: "Seks", points: 1000 }, { text: "Pomoc", points: 900 }, { text: "Szansa", points: 800 }, { text: "Kanapa", points: 700 }, { text: "Sprzęt", points: 600 }, { text: "Grabie", points: 500 }, { text: "Prośba", points: 400 }, { text: "Policja", points: 300 }, { text: "Śmieci", points: 200 }, { text: "Babcia", points: 100 } ] },
+    { text: "Składniki pizzy lub potraw", answers: [ { text: "Rukola", points: 1000 }, { text: "Jalapeno", points: 900 }, { text: "Ananas", points: 800 }, { text: "Kukurydza", points: 700 }, { text: "Papryka", points: 600 }, { text: "Salami", points: 500 }, { text: "Sos", points: 400 }, { text: "Pieczarki", points: 300 }, { text: "Szynka", points: 200 }, { text: "Ser", points: 100 } ] },
+    { text: "Popularne postacie z kawałów i dowcipów", answers: [ { text: "Baca", points: 1000 }, { text: "Ksiądz", points: 900 }, { text: "Chuck Norris", points: 800 }, { text: "Polak", points: 700 }, { text: "Żyd", points: 600 }, { text: "Murzyn", points: 500 }, { text: "Baba", points: 400 }, { text: "Teściowa", points: 300 }, { text: "Jaś", points: 200 }, { text: "Blondynka", points: 100 } ] },
+    { text: "Marki samochodów sportowych i luksusowych", answers: [ { text: "Koenigsegg", points: 1000 }, { text: "Pagani", points: 900 }, { text: "Lotus", points: 800 }, { text: "Bugatti", points: 700 }, { text: "McLaren", points: 600 }, { text: "Aston Martin", points: 500 }, { text: "Maserati", points: 400 }, { text: "Lamborghini", points: 300 }, { text: "Ferrari", points: 200 }, { text: "Porsche", points: 100 } ] },
+    { text: "Znane obrazy i dzieła sztuki", answers: [ { text: "Guernica", points: 1000 }, { text: "Trwałość pamięci", points: 900 }, { text: "Gwieździsta noc", points: 800 }, { text: "Narodziny Wenus", points: 700 }, { text: "Dziewczyna z perłą", points: 600 }, { text: "Stworzenie Adama", points: 500 }, { text: "Krzyk", points: 400 }, { text: "Słoneczniki", points: 300 }, { text: "Ostatnia Wieczerza", points: 200 }, { text: "Mona Lisa", points: 100 } ] },
+    { text: "Finałowe pytanie - Miejsca, w których należy zachować ciszę", answers: [ { text: "Filharmonia", points: 1000 }, { text: "Las", points: 900 }, { text: "Sąd", points: 800 }, { text: "Cmentarz", points: 700 }, { text: "Muzeum", points: 600 }, { text: "Szpital", points: 500 }, { text: "Teatr", points: 400 }, { text: "Kino", points: 300 }, { text: "Kościół", points: 200 }, { text: "Biblioteka", points: 100 } ] }
+  ];
+}
+
+function getSet5() {
+  return [
+    { text: "Kraje, w których obowiązuje ruch lewostronny", answers: [ { text: "Tajlandia", points: 1000 }, { text: "RPA", points: 900 }, { text: "Nowa Zelandia", points: 800 }, { text: "Malta", points: 700 }, { text: "Cypr", points: 600 }, { text: "Indie", points: 500 }, { text: "Australia", points: 400 }, { text: "Japonia", points: 300 }, { text: "Irlandia", points: 200 }, { text: "Wielka Brytania", points: 100 } ] },
+    { text: "Części ubioru, które zakładamy parami", answers: [ { text: "Spinki do mankietów", points: 1000 }, { text: "Nakolanniki", points: 900 }, { text: "Getry", points: 800 }, { text: "Pończochy", points: 700 }, { text: "Podkolanówki", points: 600 }, { text: "Kapcie", points: 500 }, { text: "Rękawiczki", points: 400 }, { text: "Kolczyki", points: 300 }, { text: "Skarpetki", points: 200 }, { text: "Buty", points: 100 } ] },
+    { text: "Legendarne zespoły rockowe", answers: [ { text: "Black Sabbath", points: 1000 }, { text: "Deep Purple", points: 900 }, { text: "The Doors", points: 800 }, { text: "U2", points: 700 }, { text: "Led Zeppelin", points: 600 }, { text: "Guns N' Roses", points: 500 }, { text: "Metallica", points: 400 }, { text: "The Rolling Stones", points: 300 }, { text: "AC/DC", points: 200 }, { text: "Queen", points: 100 } ] },
+    { text: "Działy matematyki", answers: [ { text: "Topologia", points: 1000 }, { text: "Analiza matematyczna", points: 900 }, { text: "Stereometria", points: 800 }, { text: "Trygonometria", points: 700 }, { text: "Logika", points: 600 }, { text: "Statystyka", points: 500 }, { text: "Rachunek prawdopodobieństwa", points: 400 }, { text: "Arytmetyka", points: 300 }, { text: "Algebra", points: 200 }, { text: "Geometria", points: 100 } ] },
+    { text: "Wyrazy, które czyta się tak samo od tyłu (palindromy)", answers: [ { text: "Rotor", points: 1000 }, { text: "Zakaz", points: 900 }, { text: "Sedes", points: 800 }, { text: "Zaraz", points: 700 }, { text: "Potop", points: 600 }, { text: "Ara", points: 500 }, { text: "Sos", points: 400 }, { text: "Anna", points: 300 }, { text: "Oko", points: 200 }, { text: "Kajak", points: 100 } ] },
+    { text: "Popularne gry karciane", answers: [ { text: "Remik", points: 1000 }, { text: "Brydż", points: 900 }, { text: "Pasjans", points: 800 }, { text: "Tysiąc", points: 700 }, { text: "Blef", points: 600 }, { text: "Pan", points: 500 }, { text: "Uno", points: 400 }, { text: "Makao", points: 300 }, { text: "Wojna", points: 200 }, { text: "Poker", points: 100 } ] },
+    { text: "Którą dyscyplinę sportu reprezentują?", answers: [ { text: "Szermierka", points: 1000 }, { text: "Rzut oszczepem", points: 900 }, { text: "Żużel", points: 800 }, { text: "Skoki narciarskie", points: 700 }, { text: "Futbol amerykański", points: 600 }, { text: "Hokej", points: 500 }, { text: "Zapasy", points: 400 }, { text: "Podnoszenie ciężarów", points: 300 }, { text: "Piłka nożna", points: 200 }, { text: "Boks", points: 100 } ] },
+    { text: "Jaka marka ma w logo zwierzę?", answers: [ { text: "Bacardi", points: 1000 }, { text: "Swarovski", points: 900 }, { text: "Playboy", points: 800 }, { text: "Peugeot", points: 700 }, { text: "Jaguar", points: 600 }, { text: "Duolingo", points: 500 }, { text: "Lacoste", points: 400 }, { text: "Red Bull", points: 300 }, { text: "Puma", points: 200 }, { text: "Ferrari", points: 100 } ] },
+    { text: "Mityczne stworzenia", answers: [ { text: "Gryf", points: 1000 }, { text: "Sfinks", points: 900 }, { text: "Feniks", points: 800 }, { text: "Centaur", points: 700 }, { text: "Syrena", points: 600 }, { text: "Elf", points: 500 }, { text: "Wróżka", points: 400 }, { text: "Yeti", points: 300 }, { text: "Jednorożec", points: 200 }, { text: "Smok", points: 100 } ] },
+    { text: "Zawody artystyczne", answers: [ { text: "Konserwator", points: 1000 }, { text: "Dyrygent", points: 900 }, { text: "Scenograf", points: 800 }, { text: "Projektant", points: 700 }, { text: "Architekt wnętrz", points: 600 }, { text: "Rzeźbiarz", points: 500 }, { text: "Tancerz", points: 400 }, { text: "Aktor", points: 300 }, { text: "Muzyk", points: 200 }, { text: "Malarz", points: 100 } ] },
+    { text: "Finałowe pytanie - Znane marki modowe i domy mody", answers: [ { text: "Tom Ford", points: 1000 }, { text: "Burberry", points: 900 }, { text: "Yves Saint Laurent", points: 800 }, { text: "Paco Rabanne", points: 700 }, { text: "Gucci", points: 600 }, { text: "Dolce & Gabbana", points: 500 }, { text: "Calvin Klein", points: 400 }, { text: "Giorgio Armani", points: 300 }, { text: "Dior", points: 200 }, { text: "Chanel", points: 100 } ] }
+  ];
+}
+
 function testQuestions() {
   const q = [];
   for (let i = 1; i <= 11; i++) {
@@ -152,6 +184,8 @@ function getQuestions(setId) {
     if (setId === 'set1') return getSet1();
     if (setId === 'set2') return getSet2();
     if (setId === 'set3') return getSet3();
+    if (setId === 'set4') return getSet4();
+    if (setId === 'set5') return getSet5();
     if (setId === 'test') return testQuestions();
     return getSet1(); 
 }
@@ -233,12 +267,12 @@ function broadcastState() {
     isVotingNext: isVotingNext,
     showDelta: showDelta,
     
-    // Zmienne bitwy i finału
     battlingPlayers: gameState.battlingPlayers,
     disqualifiedFromBattle: gameState.disqualifiedFromBattle,
     spectators: gameState.spectators,
     finalScenario: gameState.finalScenario,
-    finalWinner: gameState.finalWinner
+    finalWinner: gameState.finalWinner,
+    finalTieResolved: gameState.finalTieResolved
   };
 
   if (gameState.roundData) {
@@ -313,28 +347,10 @@ function startTurnTimer() {
 function showNoAnswer(playerName) {
   clearInterval(gameState.turnInterval);
   gameState.isAnswerLocked = true;
-  
-  if (gameState.currentRound === 11 && gameState.players[playerName]) {
-    gameState.players[playerName].wrongAnswers++;
-    if (gameState.players[playerName].wrongAnswers >= 2) {
-      io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Druga zła odpowiedź! Koniec gry!' });
-      gameState.revealTimer = setTimeout(() => {
-          gameState.endReason = 'mistakes';
-          gameState.phase = 'finalSummary';
-          
-          // Kto z finalistów wygrywa przez pomyłkę rywala?
-          const winner = gameState.top2.find(n => n !== playerName) || playerName;
-          gameState.finalWinner = winner;
-          broadcastState();
-      }, 4000);
-      return; 
-    }
-  }
   io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Czas minął! Brak odpowiedzi.' });
   gameState.revealTimer = setTimeout(() => { nextTurn(); }, 4000);
 }
 
-// NOWA FUNKCJA - START PRZYGOTOWAŃ DO BITWY
 function startBattlePrep(battlers) {
     gameState.phase = 'battlePrep';
     gameState.battlingPlayers = battlers;
@@ -347,14 +363,11 @@ function startBattlePrep(battlers) {
     io.emit('timerStart', { duration: 5, phase: 'battlePrep', message: 'Walka o 10. hasło! Przygotuj się!' });
     
     setTimeout(() => {
-        if(gameState.isPaused) {
-           // W przypadku pauzy czekamy, uproszczenie
-        }
+        if(gameState.isPaused) {}
         startBattle();
     }, 5000);
 }
 
-// NOWA FUNKCJA - START BITWY WŁAŚCIWEJ
 function startBattle() {
     gameState.phase = 'battle';
     gameState.isAnswerLocked = false;
@@ -388,14 +401,11 @@ function nextTurn() {
     return;
   } 
   
-  // LOGIKA ZWYKŁEJ RUNDY - SPRAWDZANIE BITWY (9 HASEŁ)
   const remaining = [...new Set(gameState.roundOrder.slice(gameState.currentTurnIndex))];
   
   if (gameState.roundData.revealedAnswers.length === 9 && remaining.length > 0 && !['battlePrep', 'battle'].includes(gameState.phase)) {
       if (remaining.length === 1) {
-          // Został tylko jeden gracz, zwykła tura
       } else {
-          // Zostało kilku graczy, którzy jeszcze nie mieli 2. kolejki -> BITWA
           startBattlePrep(remaining);
           return;
       }
@@ -483,9 +493,22 @@ function resolveVoting() {
     }
   });
 
-  let maxVotes = 0, accusedName = null;
+  let maxVotes = 0;
+  let accusedName = null;
+  let isTie = false;
+
   for (const [name, count] of Object.entries(tally)) {
-    if (count > maxVotes) { maxVotes = count; accusedName = name; }
+    if (count > maxVotes) { 
+        maxVotes = count; 
+        accusedName = name; 
+        isTie = false; 
+    } else if (count === maxVotes) {
+        isTie = true;
+    }
+  }
+  
+  if (isTie) {
+      accusedName = null;
   }
 
   const changes = {};
@@ -504,7 +527,6 @@ function resolveVoting() {
             changes[gameState.liarName] = recovered; 
         }
         
-        // ZMIANA: KARA DLA KŁAMCZUCHA (50% pkt z samych odpowiedzi od ost. głosowania)
         let penalty = Math.floor((gameState.players[gameState.liarName].pointsSinceLastVote || 0) / 2);
         gameState.players[gameState.liarName].score = Math.max(0, gameState.players[gameState.liarName].score - penalty);
         changes[gameState.liarName] = (changes[gameState.liarName] || 0) - penalty;
@@ -557,7 +579,6 @@ function resolveVoting() {
   gameState.lastVoteScores = {};
   Object.values(gameState.players).forEach(p => {
       gameState.lastVoteScores[p.name] = p.score;
-      // ZMIANA: Resetujemy punkty zebrane od głosowania dla WSZYSTKICH
       p.pointsSinceLastVote = 0;
   });
 
@@ -591,7 +612,7 @@ function startNextRound() {
     Object.values(gameState.players).forEach(p => {
         p.isLiar = false;
         p.powerupUsed = false; 
-        p.pointsSinceLastVote = 0; // Inicjalizacja dla pewności
+        p.pointsSinceLastVote = 0; 
     });
     gameState.liarName = pickNewLiar(null);
     gameState.hiddenLiarPoints = 0;
@@ -610,11 +631,17 @@ function startNextRound() {
   const qIndex = gameState.currentRound - 1;
   const question = gameState.questions[qIndex] || gameState.questions[0];
   
-  const baseOrder = sortPlayersArray(Object.values(gameState.players))
+  let baseOrder = sortPlayersArray(Object.values(gameState.players))
     .reverse() 
     .map(p => p.name);
     
-  // ZMIANA: 2 Kolejki = podwójna lista dla rund 1-10
+  if (gameState.currentRound === 1) {
+      for (let i = baseOrder.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [baseOrder[i], baseOrder[j]] = [baseOrder[j], baseOrder[i]];
+      }
+  }
+    
   gameState.roundOrder = [...baseOrder, ...baseOrder];
 
   gameState.currentTurnIndex = 0;
@@ -630,7 +657,6 @@ function setupRound11() {
   
   Object.values(gameState.players).forEach(p => p.isLiar = false);
   
-  // ZMIANA: LOSOWANIE WARIANTU KŁAMCZUCHÓW W FINALE
   const scenarios = ['0_liars', '1_liar', '2_liars'];
   gameState.finalScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
   
@@ -639,7 +665,7 @@ function setupRound11() {
   } else if (gameState.finalScenario === '2_liars') {
       gameState.players[gameState.top2[0]].isLiar = true;
       gameState.players[gameState.top2[1]].isLiar = true;
-      gameState.liarName = "Obaj"; // Tech oznaczenie
+      gameState.liarName = "Obaj"; 
   } else {
       gameState.liarName = null;
   }
@@ -650,7 +676,6 @@ function setupRound11() {
   const starter = gameState.top2[1];
   const second = gameState.top2[0];
   
-  // W finale mamy po 3 tury
   gameState.roundOrder = [starter, second, starter, second, starter, second]; 
   gameState.currentTurnIndex = 0;
   gameState.roundData = { questionText: question.text, answers: question.answers, revealedAnswers: [], wrongAnswersList: [] };
@@ -732,22 +757,23 @@ function resolveFinalVoting() {
   const p2 = gameState.top2[1];
 
   let winnerName = null;
-  // ZMIANA: Wygrywa ten, kto ma MNIEJ głosów (jest niewinny/bardziej wiarygodny)
+  let tieResolvedByPoints = false;
   if (tally[p1] < tally[p2]) {
       winnerName = p1;
   } else if (tally[p2] < tally[p1]) {
       winnerName = p2;
   } else {
-      // W przypadku remisu decyduje wyższa punktacja PRZED finałem
+      tieResolvedByPoints = true;
       if (gameState.players[p1].score > gameState.players[p2].score) winnerName = p1;
       else winnerName = p2; 
   }
   
   gameState.finalWinner = winnerName;
+  gameState.finalTieResolved = tieResolvedByPoints;
   gameState.finalVotes = gameState.votes;
   gameState.finalTally = tally;
 
-  gameState.liarHistory.push({ round: 11, liarName: gameState.liarName, caught: false, accusedName: null }); // Historia tutaj ma mniejsze znaczenie, ale zostawiamy dla spójności
+  gameState.liarHistory.push({ round: 11, liarName: gameState.liarName, caught: false, accusedName: null });
   broadcastState();
 }
 
@@ -853,7 +879,6 @@ io.on('connection', (socket) => {
     const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
     if (!player) return;
 
-    // LOGIKA BITWY (Ostatnie hasło)
     if (gameState.phase === 'battle') {
         if (!gameState.battlingPlayers.includes(player.name) || gameState.disqualifiedFromBattle.includes(player.name)) return;
         
@@ -861,7 +886,6 @@ io.on('connection', (socket) => {
         const idx = matchAnswer(answer, rd.answers, rd.revealedAnswers.map(r => r.index));
         
         if (idx >= 0) {
-            // Pierwszy poprawny zgarnął!
             clearInterval(gameState.turnInterval);
             gameState.isAnswerLocked = true;
             const ans = rd.answers[idx];
@@ -876,12 +900,10 @@ io.on('connection', (socket) => {
             broadcastState(); 
             gameState.revealTimer = setTimeout(() => startRoundSummary(), 4000);
         } else {
-            // Błędna odpowiedź eliminuje z bitwy
             gameState.disqualifiedFromBattle.push(player.name);
             socket.emit('timerStart', { duration: 3, phase: 'reveal', correct: false, message: 'Zła odpowiedź! Odpadasz z tej bitwy.' });
-            broadcastState(); // Aktualizujemy widok dla widzów
+            broadcastState(); 
             
-            // Jeśli wszyscy odpadli
             if (gameState.disqualifiedFromBattle.length >= gameState.battlingPlayers.length) {
                 clearInterval(gameState.turnInterval);
                 gameState.isAnswerLocked = true;
@@ -892,7 +914,6 @@ io.on('connection', (socket) => {
         return;
     }
 
-    // LOGIKA ZWYKŁEJ TURY
     if (gameState.phase !== 'round') return;
 
     const currentName = gameState.roundOrder[gameState.currentTurnIndex];
@@ -909,7 +930,6 @@ io.on('connection', (socket) => {
       player.score += ans.points;
       player.pointsHistory[ans.points] = (player.pointsHistory[ans.points] || 0) + 1; 
       
-      // Dodajemy punkty do puli z tej rundy (na wypadek bycia złapanym kłamczuchem)
       player.pointsSinceLastVote = (player.pointsSinceLastVote || 0) + ans.points;
       
       rd.revealedAnswers.push({ index: idx, text: ans.text, points: ans.points, byName: player.name });
@@ -918,23 +938,6 @@ io.on('connection', (socket) => {
     } else {
       gameState.lastWrongAnswer = { playerName: player.name, text: answer };
       rd.wrongAnswersList.push({ text: answer, byName: player.name });
-      
-      if (gameState.currentRound === 11) {
-          player.wrongAnswers++;
-          if (player.wrongAnswers >= 2) {
-              io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Druga zła odpowiedź! Koniec gry!' });
-              broadcastState();
-              gameState.revealTimer = setTimeout(() => { 
-                  gameState.endReason = 'mistakes';
-                  gameState.phase = 'finalSummary';
-                  
-                  const winner = gameState.top2.find(n => n !== player.name) || player.name;
-                  gameState.finalWinner = winner;
-                  broadcastState();
-              }, 4000);
-              return; 
-          }
-      }
 
       io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Zła odpowiedź!' });
       broadcastState();
@@ -974,6 +977,11 @@ io.on('connection', (socket) => {
     if (usePowerup && !player.powerupUsed && gameState.phase === 'voting') {
         player.powerupUsed = true;
         gameState.powerupsThisRound[player.name] = true;
+    }
+    
+    if (!usePowerup && player.powerupUsed && gameState.phase === 'voting' && gameState.powerupsThisRound[player.name]) {
+        player.powerupUsed = false;
+        delete gameState.powerupsThisRound[player.name];
     }
 
     gameState.votes[player.name] = votedName;

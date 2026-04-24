@@ -130,7 +130,6 @@
 
   .grid-2col { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
   
-  /* Stylowanie dla bitwy */
   .battle-pulsate { animation: pulsate 1s infinite alternate; }
   @keyframes pulsate { from { text-shadow: 0 0 10px var(--accent); } to { text-shadow: 0 0 30px var(--accent); color: #fff; } }
 
@@ -248,7 +247,7 @@
         <h3 style="color:var(--accent); font-weight: 800;">🔴 KŁAMCZUCH</h3>
         <div id="liar-answers-list"></div>
       </div>
-      <div class="card">
+      <div class="card" id="scoreboard-card">
         <h3>Ranking</h3>
         <div id="scoreboard"></div>
       </div>
@@ -396,9 +395,17 @@ function changeVolume(val) {
 function togglePowerup() {
     const btn = document.getElementById('btn-powerup');
     if (btn.classList.contains('disabled')) return;
+    
     isPowerupActive = !isPowerupActive;
-    if (isPowerupActive) btn.classList.add('active');
-    else btn.classList.remove('active');
+    const puLabel = document.getElementById('powerup-label');
+    
+    if (isPowerupActive) {
+        btn.classList.add('active');
+        puLabel.textContent = "PowerUP zostanie wykorzystany w tej rundzie";
+    } else {
+        btn.classList.remove('active');
+        puLabel.textContent = "Użyj PowerUPa!";
+    }
     
     if (myVote && myVote !== null) {
         socket.emit('vote', { votedName: myVote, usePowerup: isPowerupActive });
@@ -491,12 +498,13 @@ socket.on('state', s => {
     c.innerHTML = s.players.map(p => `<span class="player-chip ${p.connected ? '' : 'offline'}">${p.name}</span>`).join('');
   }
 
-  // WSPÓLNA LOGIKA DLA RUNDY ORAZ BITWY
   if (s.phase === 'round' || s.phase === 'battlePrep' || s.phase === 'battle') {
     showScreen('screen-game');
     document.getElementById('round-num').textContent = s.currentRound;
     document.getElementById('my-name-display').textContent = myName;
     document.getElementById('question-text').textContent = s.questionText;
+    
+    document.getElementById('scoreboard-card').style.display = 'none';
 
     if (s.liarAnswers) {
       document.getElementById('liar-panel').style.display = 'block';
@@ -522,7 +530,6 @@ socket.on('state', s => {
     const bpInfo = document.getElementById('battle-prep-info');
     const turnInfo = document.getElementById('turn-info');
 
-    // LOGIKA UI DLA RÓŻNYCH STANÓW
     if (s.phase === 'battlePrep') {
         turnInfo.style.display = 'none';
         ansContainer.style.display = 'none';
@@ -562,7 +569,6 @@ socket.on('state', s => {
         turnInfo.style.display = 'block';
 
     } else {
-        // Zwykła runda
         turnInfo.style.display = 'block';
         bpInfo.style.display = 'none';
         const isMyTurn = s.currentPlayerName === myName;
@@ -580,7 +586,6 @@ socket.on('state', s => {
         ansContainer.style.display = isMyTurn ? 'block' : 'none';
     }
 
-    // Wyświetlanie odpowiedzi
     const revContainer = document.getElementById('revealed-answers');
     revContainer.innerHTML = '';
     const count = s.answerCount || 10;
@@ -607,7 +612,6 @@ socket.on('state', s => {
     } else {
         document.getElementById('wrong-answers-card').style.display = 'none';
     }
-    renderScoreboard('scoreboard', s.players);
   }
 
   if (s.phase === 'scoreboard') {
@@ -679,11 +683,11 @@ socket.on('state', s => {
         document.getElementById('voting-title').innerHTML = "⚖️ Sąd Ostateczny!";
         document.getElementById('voting-subtitle').innerHTML = "Jury decyduje: Kto zostanie odrzucony jako kłamczuch?";
         puContainer.style.display = 'none'; 
-        sbPanel.style.display = 'none'; // W finale ukrywamy panel boczny
+        sbPanel.style.display = 'none'; 
     } else {
         document.getElementById('voting-title').innerHTML = "🗳️ Głosowanie";
         document.getElementById('voting-subtitle').innerHTML = "Wskaż kłamczucha";
-        sbPanel.style.display = 'block'; // Pokazujemy panel boczny w 1-10
+        sbPanel.style.display = 'block'; 
         
         puContainer.style.display = 'inline-block';
         if (s.myPowerupUsed && !isPowerupActive) {
@@ -693,13 +697,16 @@ socket.on('state', s => {
             puLabel.style.color = "var(--muted)";
         } else {
             puBtn.classList.remove('disabled');
-            if (isPowerupActive) puBtn.classList.add('active');
-            else puBtn.classList.remove('active');
-            puLabel.textContent = "Użyj PowerUPa!";
+            if (isPowerupActive) {
+                puBtn.classList.add('active');
+                puLabel.textContent = "PowerUP zostanie wykorzystany w tej rundzie";
+            } else {
+                puBtn.classList.remove('active');
+                puLabel.textContent = "Użyj PowerUPa!";
+            }
             puLabel.style.color = "var(--yellow)";
         }
 
-        // ZMIANA: Renderowanie tablicy wyników na ekranie głosowania
         const sbList = document.getElementById('voting-scoreboard-list');
         sbList.innerHTML = '';
         s.players.forEach((p, i) => {
@@ -764,31 +771,28 @@ socket.on('state', s => {
     if (latestVerdict && latestVerdict.round === s.currentRound) {
         const verdictEl = document.getElementById('voting-verdict');
         
-        let recoveredHtml = '';
-        if (s.lastRecoveredPoints && s.lastRecoveredPoints > 0) {
-            recoveredHtml = `<div style="background:rgba(255,215,0,0.15); border:2px solid var(--yellow); padding:10px; border-radius:8px; margin-top:15px; box-shadow: 0 0 15px rgba(255,215,0,0.4);">
-                               <strong style="color:var(--yellow); font-size:1.3rem;">💰 Kłamczuch rozbija bank! Za wcześniejsze mylne oskarżenia tłumu zgarnia ukryte +${s.lastRecoveredPoints} pkt!</strong>
-                             </div>`;
-        }
-
-        // Informacja o straconych punktach kłamczucha
         let penaltyHtml = '';
+        let recoveredHtml = '';
+
         if (latestVerdict.caught) {
             const liarLoss = s.lastVotingChanges[latestVerdict.liarName] || 0;
             if (liarLoss < 0) {
-                penaltyHtml = `<div style="color:var(--accent); font-weight:bold; margin-top:10px;">📉 Traci połowę zysków z tej rundy: ${liarLoss} pkt!</div>`;
+                penaltyHtml = `<div style="color:var(--accent); font-weight:bold; margin-top:10px;">📉 Traci połowę zysków z dwóch ostatnich rund: ${liarLoss} pkt!</div>`;
             }
-        }
+            
+            if (s.lastRecoveredPoints && s.lastRecoveredPoints > 0) {
+                recoveredHtml = `<div style="background:rgba(255,215,0,0.15); border:2px solid var(--yellow); padding:10px; border-radius:8px; margin-top:15px; box-shadow: 0 0 15px rgba(255,215,0,0.4);">
+                                   <strong style="color:var(--yellow); font-size:1.3rem;">💰 Kłamczuch rozbija bank! Za wcześniejsze mylne oskarżenia tłumu zgarnia ukryte +${s.lastRecoveredPoints} pkt!</strong>
+                                 </div>`;
+            }
 
-        if (latestVerdict.caught) {
             verdictEl.innerHTML = `<h3 style="color:var(--green); margin:0; font-size:1.6rem;">🚨 Kłamczuch został złapany!</h3>
                                    <p style="font-size:1.2rem; margin-top:5px;">Kłamczuchem był gracz: <strong>${latestVerdict.liarName}</strong>.</p>
                                    ${penaltyHtml}
                                    ${recoveredHtml}`;
             verdictEl.style.borderColor = 'var(--green)';
         } else {
-            verdictEl.innerHTML = `<h3 style="color:var(--accent); margin:0; font-size:1.6rem;">💨 Nie wykryto kłamczucha!</h3>
-                                   ${recoveredHtml}`;
+            verdictEl.innerHTML = `<h3 style="color:var(--accent); margin:0; font-size:1.6rem;">💨 Nie wykryto kłamczucha!</h3>`;
             verdictEl.style.borderColor = 'var(--accent)';
         }
     }
@@ -872,7 +876,6 @@ socket.on('state', s => {
             <h3 style="color:var(--blue); text-align:center; margin-bottom:15px;">📜 ZASADY FINAŁU</h3>
             <ol style="padding-left: 20px; color:var(--muted); font-size: 1.1rem; display:flex; flex-direction:column; gap:8px;">
                 <li>Wyświetlane jest jedno pytanie, odpowiada tylko finałowa dwójka. Każdy ma po 3 odpowiedzi na zmianę.</li>
-                <li>Dwie pomyłki gracza w finale to automatyczna przegrana!</li>
                 <li><b>Tym razem mogło wylosować 2 kłamczuchów, 1 kłamczucha, albo NIKOGO! Finaliści sami nie wiedzą, jaką rolę ma przeciwnik.</b></li>
                 <li>Po odpowiedziach każdy ma 45 sekund na przekonanie reszty graczy, że jest niewinny.</li>
                 <li>Następnie pozostali gracze (Jury) głosują na osobę, która ich zdaniem kłamie.</li>
@@ -895,7 +898,6 @@ socket.on('state', s => {
   if (s.phase === 'finalSummary') {
     showScreen('screen-final');
     
-    // Wypisujemy wariant finałowy
     let scMsg = '';
     if (s.finalScenario === '0_liars') scMsg = '😲 Czysta gra! ŻADEN z finalistów nie był kłamczuchem!';
     else if (s.finalScenario === '2_liars') scMsg = '😈 Pełna manipulacja! OBAJ finaliści byli kłamczuchami!';
@@ -909,10 +911,12 @@ socket.on('state', s => {
     if (s.endReason === 'mistakes') {
         finalVerdictEl.innerHTML = `
             <h3 style="color:var(--yellow); font-size: 2.5rem; margin-bottom: 10px;">🏆 Wygrywa: ${s.finalWinner}!</h3>
-            <p style="color:var(--muted); font-size: 1.2rem;">Gra zakończona – przeciwnik popełnił 2 błędy podczas odpowiadania.</p>
+            <p style="color:var(--muted); font-size: 1.2rem;">Gra zakończona – przeciwnik popełnił błędy podczas odpowiadania.</p>
         `;
     } else {
-        finalVerdictEl.innerHTML = `<h3 style="color:var(--yellow); font-size: 3rem; text-shadow: 0 0 20px rgba(255,215,0,0.5);">🏆 Triumfuje: ${s.finalWinner}!</h3>`;
+        let tieMsg = s.finalTieResolved ? `<p style="color:var(--muted); font-size:1.2rem; margin-top:10px;">W głosowaniu był remis, ale <strong>${s.finalWinner}</strong> zgromadził więcej punktów.</p>` : '';
+
+        finalVerdictEl.innerHTML = `<h3 style="color:var(--yellow); font-size: 3rem; text-shadow: 0 0 20px rgba(255,215,0,0.5);">🏆 Triumfuje: ${s.finalWinner}!</h3>${tieMsg}`;
 
         if (s.finalVotes && s.finalTally) {
             let detailsHtml = '<h3 style="color:var(--blue); margin-top:30px; margin-bottom:15px; text-align:center;">Kto na kogo zagłosował w finale?</h3><div class="grid-2col">';
