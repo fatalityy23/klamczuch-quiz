@@ -188,9 +188,10 @@
     <ol style="padding-left: 20px; color:var(--muted); display:flex; flex-direction:column; gap:8px;">
       <li>Na początku gry wybierany jest kłamczuch. Będzie on widział wszystkie odpowiedzi na dane pytanie w rundzie.</li>
       <li>Gracze zdobywają punkty poprzez odpowiadanie na pytanie w rundzie. Są 2 kolejki odpowiadania. Zaczyna gracz z najmniejszą ilością punktów.</li>
-      <li>Jeśli w trakcie 2. kolejki padnie 9 z 10 odpowiedzi, następuje <b>Bitwa o Ostatnie Hasło</b> między graczami, którzy jeszcze nie odpowiadali - kto pierwszy wpisze poprawne hasło, zgarnia punkty!</li>
+      <li>Jeśli w trakcie drugiej kolejki padnie 9 z 10 odpowiedzi, następuje <b>Bitwa o Ostatnie Hasło</b> między graczami, którzy jeszcze nie odpowiadali - kto pierwszy wpisze poprawne hasło, zgarnia punkty!</li>
       <li>Po rundach 2,4,6,8,10 odbywa się głosowanie na kłamczucha. Wykrycie kłamczucha daje 500 pkt zgadującym. <b>Kłamczuch traci wtedy 500 pkt zebrane z samych odpowiedzi z tych rund!</b></li>
       <li>Jeśli przynajmniej 3 graczy wskaże niewinną osobę to każdy z nich traci 500 pkt. Kłamczuch zyskuje ukryte 700 pkt.</li>
+	<li>Jeśli kłamczuch zostanie wykryty podczas głosowania to traci połowę punktów za odpowiedzi zdobyte w 2 ostatnich rundach.</li>
       <li>Do finałowej 11. rundy przechodzi 2 graczy z największą ilością punktów. W finale warianty mogą być różne: 2 kłamczuchów, 1 kłamczuch lub brak kłamczucha! Wygrywa ten z mniejszą ilością głosów oskarżających.</li>
     </ol>
   </div>
@@ -880,6 +881,7 @@ socket.on('state', s => {
                 <li>Po odpowiedziach każdy ma 45 sekund na przekonanie reszty graczy, że jest niewinny.</li>
                 <li>Następnie pozostali gracze (Jury) głosują na osobę, która ich zdaniem kłamie.</li>
                 <li><strong style="color:var(--text);">Wygrywa gracz, który otrzyma MNIEJ głosów oskarżających.</strong></li>
+                <li>W przypadku remisu (parzysta ilość graczy) wygrywa osoba, która zgromadziła najwięcej punktów przez całą grę.</li>
             </ol>
         </div>
 
