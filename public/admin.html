@@ -19,6 +19,9 @@
   .powerup-icon { font-size: 1.2rem; margin-left: 5px; }
   .powerup-active { text-shadow: 0 0 10px gold; }
   .powerup-used { opacity: 0.2; filter: grayscale(100%); }
+  .admin-action-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:8px; margin-top:12px; }
+  .admin-action-grid button { width:100%; margin:0; }
+  .status-pill { display:inline-block; background:#111; border:1px solid #333; border-radius:999px; padding:6px 10px; margin:4px; font-size:0.9rem; }
 </style>
 </head>
 <body>
@@ -54,7 +57,20 @@
       <button class="btn-blue" id="pause-btn" onclick="socket.emit('togglePause')">⏸ Pauza</button>
       <button class="btn-gray" onclick="if(confirm('Zresetować grę?')) socket.emit('stopGame')">⏹ Stop / Reset</button>
       <button class="btn-blue" onclick="socket.emit('startNextRound')">⏭ Następna Runda</button>
+
+      <div class="admin-action-grid">
+        <button class="btn-blue" onclick="socket.emit('adminSkipTurn')">Pomin ture</button>
+        <button class="btn-blue" onclick="socket.emit('adminFinishTimer')">Zakoncz timer</button>
+        <button class="btn-green" onclick="socket.emit('adminFinishVoting')">Zakoncz glosowanie</button>
+        <button class="btn-gray" id="undo-override-btn" onclick="socket.emit('adminUndoOverride')">Cofnij override</button>
+      </div>
     </div>
+  </div>
+
+  <div class="card" id="host-status-panel">
+    <h3>Status glosowania</h3>
+    <div id="voting-status">Brak aktywnego glosowania.</div>
+    <div id="admin-toast" style="display:none; margin-top:10px; color:var(--green); font-weight:bold;"></div>
   </div>
 
   <div class="card" id="override-panel" style="display:none; border:2px solid var(--accent);">
@@ -99,6 +115,14 @@ function adminLogin() {
   });
 }
 
+socket.on('adminNotification', data => {
+  const toast = document.getElementById('admin-toast');
+  if (!toast) return;
+  toast.textContent = data.message || '';
+  toast.style.display = toast.textContent ? 'block' : 'none';
+  if (toast.textContent) setTimeout(() => { toast.style.display = 'none'; }, 3500);
+});
+
 socket.on('state', s => {
   let statusText = s.phase;
   if (s.phase === 'battlePrep') statusText += ' (PRZYGOTOWANIE DO BITWY)';
@@ -111,6 +135,20 @@ socket.on('state', s => {
   pauseBtn.style.background = s.isPaused ? 'var(--green)' : 'var(--blue)';
   
   document.getElementById('liar-name').textContent = s.liarName || 'Brak';
+
+  const votingStatusEl = document.getElementById('voting-status');
+  if (votingStatusEl) {
+    const vs = s.votingStatus;
+    if (vs && vs.expectedVoteCount > 0 && ['voting', 'finalVoting'].includes(s.phase)) {
+      const missing = vs.missingVotes.length ? vs.missingVotes.map(escapeHtml).join(', ') : 'nikt';
+      votingStatusEl.innerHTML = 'Oddano: <strong>' + vs.voteCount + '/' + vs.expectedVoteCount + '</strong><br>Brakuje: <span class="status-pill">' + missing + '</span>';
+    } else {
+      votingStatusEl.textContent = 'Brak aktywnego glosowania.';
+    }
+  }
+
+  const undoBtn = document.getElementById('undo-override-btn');
+  if (undoBtn) undoBtn.disabled = !s.lastAdminOverride;
 
   const preview = document.getElementById('answers-preview');
   preview.innerHTML = '';
