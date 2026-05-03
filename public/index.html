@@ -350,6 +350,9 @@
 
 <script>
 const socket = io();
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
 let myName = '';
 let myVote = null;
 let isPowerupActive = false; 
@@ -496,7 +499,7 @@ socket.on('state', s => {
     clearInterval(timerInterval);
     showScreen('screen-lobby');
     const c = document.getElementById('lobby-players');
-    c.innerHTML = s.players.map(p => `<span class="player-chip ${p.connected ? '' : 'offline'}">${p.name}</span>`).join('');
+    c.innerHTML = s.players.map(p => `<span class="player-chip ${p.connected ? '' : 'offline'}">${escapeHtml(p.name)}</span>`).join('');
   }
 
   if (s.phase === 'round' || s.phase === 'battlePrep' || s.phase === 'battle') {
@@ -514,10 +517,10 @@ socket.on('state', s => {
       document.getElementById('liar-answers-list').innerHTML = s.liarAnswers.map((a, i) => {
         const rev = s.revealedAnswers?.find(r => r.index === i);
         const isRev = !!rev;
-        const guesser = (isRev && rev.byName !== 'System') ? ` <small style="color:var(--muted)">(${rev.byName})</small>` : '';
+        const guesser = (isRev && rev.byName !== 'System') ? ` <small style="color:var(--muted)">(${escapeHtml(rev.byName)})</small>` : '';
         return `
           <div class="liar-answer ${isRev ? 'revealed' : ''}">
-            <span>${a.text}${guesser}</span><span style="color:var(--yellow)">${a.points}</span>
+            <span>${escapeHtml(a.text)}${guesser}</span><span style="color:var(--yellow)">${a.points}</span>
           </div>`;
       }).join('');
     } else {
@@ -595,8 +598,8 @@ socket.on('state', s => {
       const tile = document.createElement('div');
       tile.className = 'answer-tile' + (rev ? '' : ' hidden');
       if (rev) {
-        let author = rev.byName !== 'System' ? ` <small style="color:var(--muted); margin-left:8px;">(${rev.byName})</small>` : '';
-        tile.innerHTML = `<span>${i + 1}. ${rev.text}${author}</span><span class="pts">${rev.points}</span>`;
+        let author = rev.byName !== 'System' ? ` <small style="color:var(--muted); margin-left:8px;">(${escapeHtml(rev.byName)})</small>` : '';
+        tile.innerHTML = `<span>${i + 1}. ${escapeHtml(rev.text)}${author}</span><span class="pts">${rev.points}</span>`;
       } else {
         tile.innerHTML = `<span>${i + 1}. ???</span><span class="pts">---</span>`;
       }
@@ -607,7 +610,7 @@ socket.on('state', s => {
     wrongContainer.innerHTML = '';
     if (s.wrongAnswersList && s.wrongAnswersList.length > 0) {
         s.wrongAnswersList.forEach(w => {
-            wrongContainer.innerHTML += `<div style="color:var(--accent); padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.05);">❌ ${w.text} <small style="color:var(--muted)">(${w.byName})</small></div>`;
+            wrongContainer.innerHTML += `<div style="color:var(--accent); padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.05);">❌ ${escapeHtml(w.text)} <small style="color:var(--muted)">(${escapeHtml(w.byName)})</small></div>`;
         });
         document.getElementById('wrong-answers-card').style.display = 'block';
     } else {
@@ -634,7 +637,7 @@ socket.on('state', s => {
       html += `
         <div class="score-row">
            <span style="flex:0.5;">${i+1}.</span>
-           <span style="flex:2;">${p.name}</span>
+           <span style="flex:2;">${escapeHtml(p.name)}</span>
            <span style="flex:1.5; text-align:right; color:var(--yellow); font-weight:bold;">${p.score} pkt</span>
            ${s.showDelta ? `<span style="flex:1.5; text-align:right; color:var(--green); font-weight:bold;">+${diff} pkt</span>` : ''}
         </div>`;
@@ -714,7 +717,7 @@ socket.on('state', s => {
             const deltaPts = p.pointsSinceLastVote || 0;
             sbList.innerHTML += `
               <div style="display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.05); padding:5px 0;">
-                <span>${i+1}. ${p.name}</span>
+                <span>${i+1}. ${escapeHtml(p.name)}</span>
                 <div>
                   <strong style="color:var(--yellow);">${p.score}</strong>
                   <small style="color:var(--green); margin-left:5px;">(+${deltaPts})</small>
@@ -739,7 +742,7 @@ socket.on('state', s => {
         targets.forEach(p => {
           const card = document.createElement('div');
           card.className = 'vote-card' + (myVote === p.name ? ' selected' : '');
-          card.innerHTML = `<strong>${p.name}</strong>`;
+          card.innerHTML = `<strong>${escapeHtml(p.name)}</strong>`;
           card.onclick = () => {
             myVote = p.name;
             socket.emit('vote', { votedName: p.name, usePowerup: isPowerupActive });
@@ -788,7 +791,7 @@ socket.on('state', s => {
             }
 
             verdictEl.innerHTML = `<h3 style="color:var(--green); margin:0; font-size:1.6rem;">🚨 Kłamczuch został złapany!</h3>
-                                   <p style="font-size:1.2rem; margin-top:5px;">Kłamczuchem był gracz: <strong>${latestVerdict.liarName}</strong>.</p>
+                                   <p style="font-size:1.2rem; margin-top:5px;">Kłamczuchem był gracz: <strong>${escapeHtml(latestVerdict.liarName)}</strong>.</p>
                                    ${penaltyHtml}
                                    ${recoveredHtml}`;
             verdictEl.style.borderColor = 'var(--green)';
@@ -811,7 +814,7 @@ socket.on('state', s => {
       Object.entries(s.votes).forEach(([voter, votedFor]) => {
         tally[votedFor] = (tally[votedFor] || 0) + 1; 
         
-        let votedText = votedFor === 'ABSTAIN' ? '<span style="color:var(--muted)">Wstrzymał się</span>' : `<strong>${votedFor}</strong>`;
+        let votedText = votedFor === 'ABSTAIN' ? '<span style="color:var(--muted)">Wstrzymał się</span>' : `<strong>${escapeHtml(votedFor)}</strong>`;
         
         const change = s.lastVotingChanges[voter] || 0;
         let color = 'var(--muted)';
@@ -822,7 +825,7 @@ socket.on('state', s => {
 
         list.innerHTML += `
           <div class="vote-result-row">
-            <span><strong>${voter}</strong>${pwHtml} → ${votedText}</span>
+            <span><strong>${escapeHtml(voter)}</strong>${pwHtml} → ${votedText}</span>
             <span style="color:${color}; font-weight:800">${change > 0 ? '+' : ''}${change} pkt</span>
           </div>`;
       });
@@ -835,7 +838,7 @@ socket.on('state', s => {
             if (count === 1) textGlos = 'głos';
             else if (count > 1 && count < 5) textGlos = 'głosy';
             
-            let displayName = name === 'ABSTAIN' ? '<span style="color:var(--muted)">Wstrzymali się</span>' : `<strong>${name}</strong>`;
+            let displayName = name === 'ABSTAIN' ? '<span style="color:var(--muted)">Wstrzymali się</span>' : `<strong>${escapeHtml(name)}</strong>`;
 
             tallyList.innerHTML += `
               <div class="vote-result-row" style="background: rgba(255,42,95,0.1); border-left: 4px solid var(--accent); justify-content: space-between;">
@@ -857,7 +860,7 @@ socket.on('state', s => {
         const isReady = s.rulesUnderstood && s.rulesUnderstood[p.name];
         understoodHtml += `
           <span class="player-chip" style="background:${isReady ? 'rgba(0, 230, 118, 0.2)' : 'var(--accent2)'}; border: 1px solid ${isReady ? 'var(--green)' : 'rgba(255,255,255,0.1)'}">
-            ${p.name} ${isReady ? '✅' : '⏳'}
+            ${escapeHtml(p.name)} ${isReady ? '✅' : '⏳'}
           </span>`;
     });
     understoodHtml += '</div>';
@@ -869,7 +872,7 @@ socket.on('state', s => {
         <h1 style="color:var(--accent); font-size: 3.5rem; margin-bottom: 20px;">Wielki Finał</h1>
         <p style="font-size: 1.5rem; color: var(--text);">Do ostatecznego starcia wchodzą:</p>
         <div style="font-size: 3rem; font-weight: 800; color: var(--green); margin: 15px 0;">
-            ${top2[0]?.name || '?'} <span style="color:var(--muted); font-size:1.5rem;">vs</span> ${top2[1]?.name || '?'}
+            ${escapeHtml(top2[0]?.name || '?')} <span style="color:var(--muted); font-size:1.5rem;">vs</span> ${escapeHtml(top2[1]?.name || '?')}
         </div>
         <p style="font-size: 1.2rem; color: var(--muted); margin-top:15px;">Uwaga! Został wylosowany nowy układ Kłamczuchów...</p>
 
@@ -903,7 +906,7 @@ socket.on('state', s => {
     let scMsg = '';
     if (s.finalScenario === '0_liars') scMsg = '😲 Czysta gra! ŻADEN z finalistów nie był kłamczuchem!';
     else if (s.finalScenario === '2_liars') scMsg = '😈 Pełna manipulacja! OBAJ finaliści byli kłamczuchami!';
-    else scMsg = `🎭 Tylko JEDEN kłamczuch w finale! Był nim: <strong style="color:var(--yellow);">${s.liarName}</strong>`;
+    else scMsg = `🎭 Tylko JEDEN kłamczuch w finale! Był nim: <strong style="color:var(--yellow);">${escapeHtml(s.liarName)}</strong>`;
     document.getElementById('final-scenario-msg').innerHTML = scMsg;
 
     const finalVerdictEl = document.getElementById('final-verdict');
@@ -912,26 +915,26 @@ socket.on('state', s => {
     
     if (s.endReason === 'mistakes') {
         finalVerdictEl.innerHTML = `
-            <h3 style="color:var(--yellow); font-size: 2.5rem; margin-bottom: 10px;">🏆 Wygrywa: ${s.finalWinner}!</h3>
+            <h3 style="color:var(--yellow); font-size: 2.5rem; margin-bottom: 10px;">🏆 Wygrywa: ${escapeHtml(s.finalWinner)}!</h3>
             <p style="color:var(--muted); font-size: 1.2rem;">Gra zakończona – przeciwnik popełnił błędy podczas odpowiadania.</p>
         `;
     } else {
-        let tieMsg = s.finalTieResolved ? `<p style="color:var(--muted); font-size:1.2rem; margin-top:10px;">W głosowaniu był remis, ale <strong>${s.finalWinner}</strong> zgromadził więcej punktów.</p>` : '';
+        let tieMsg = s.finalTieResolved ? `<p style="color:var(--muted); font-size:1.2rem; margin-top:10px;">W głosowaniu był remis, ale <strong>${escapeHtml(s.finalWinner)}</strong> zgromadził więcej punktów.</p>` : '';
 
-        finalVerdictEl.innerHTML = `<h3 style="color:var(--yellow); font-size: 3rem; text-shadow: 0 0 20px rgba(255,215,0,0.5);">🏆 Triumfuje: ${s.finalWinner}!</h3>${tieMsg}`;
+        finalVerdictEl.innerHTML = `<h3 style="color:var(--yellow); font-size: 3rem; text-shadow: 0 0 20px rgba(255,215,0,0.5);">🏆 Triumfuje: ${escapeHtml(s.finalWinner)}!</h3>${tieMsg}`;
 
         if (s.finalVotes && s.finalTally) {
             let detailsHtml = '<h3 style="color:var(--blue); margin-top:30px; margin-bottom:15px; text-align:center;">Kto na kogo zagłosował w finale?</h3><div class="grid-2col">';
 
             let listHtml = '<div style="background:rgba(0,0,0,0.2); padding:15px; border-radius:12px; display:flex; flex-direction:column; gap:8px;">';
             Object.entries(s.finalVotes).forEach(([voter, votedFor]) => {
-                listHtml += `<div class="vote-result-row"><span><strong>${voter}</strong> oskarżył: <strong>${votedFor}</strong></span></div>`;
+                listHtml += `<div class="vote-result-row"><span><strong>${escapeHtml(voter)}</strong> oskarżył: <strong>${escapeHtml(votedFor)}</strong></span></div>`;
             });
             listHtml += '</div>';
 
             let tallyHtml = '<div style="background:rgba(0,0,0,0.2); padding:15px; border-radius:12px; border:1px solid var(--accent); display:flex; flex-direction:column; gap:10px;">';
             Object.entries(s.finalTally).sort((a,b)=>b[1]-a[1]).forEach(([name, count]) => {
-                tallyHtml += `<div class="vote-result-row" style="background: rgba(255,42,95,0.1); border-left: 4px solid var(--accent); justify-content: space-between;"><span style="font-size:1.3rem;"><strong>${name}</strong></span><span style="color:var(--accent); font-weight:800; font-size:1.3rem;">${count} oskarżeń</span></div>`;
+                tallyHtml += `<div class="vote-result-row" style="background: rgba(255,42,95,0.1); border-left: 4px solid var(--accent); justify-content: space-between;"><span style="font-size:1.3rem;"><strong>${escapeHtml(name)}</strong></span><span style="color:var(--accent); font-weight:800; font-size:1.3rem;">${count} oskarżeń</span></div>`;
             });
             tallyHtml += '</div>';
 
@@ -951,7 +954,7 @@ socket.on('state', s => {
       htmlFinal += `
         <div class="score-row">
            <span style="flex:0.5;">${i+1}.</span>
-           <span style="flex:2;">${p.name}</span>
+           <span style="flex:2;">${escapeHtml(p.name)}</span>
            <span style="flex:1.5; text-align:right; color:var(--yellow); font-weight:bold;">${p.score} pkt</span>
         </div>`;
     });
@@ -980,8 +983,8 @@ function renderAnswerSlots(containerId, allAnswers, revealed, showAllText) {
     const tile = document.createElement('div');
     tile.className = 'answer-tile' + (rev || showAllText ? '' : ' hidden');
     let content = rev || showAllText ? ans.text : '???';
-    let author = rev && rev.byName !== 'System' ? ` <small style="color:var(--muted)">(${rev.byName})</small>` : '';
-    tile.innerHTML = `<span>${i + 1}. ${content}${author}</span><span class="pts">${ans.points}</span>`;
+    let author = rev && rev.byName !== 'System' ? ` <small style="color:var(--muted)">(${escapeHtml(rev.byName)})</small>` : '';
+    tile.innerHTML = `<span>${i + 1}. ${escapeHtml(content)}${author}</span><span class="pts">${ans.points}</span>`;
     container.appendChild(tile);
   });
 }
@@ -1054,7 +1057,7 @@ function renderScoreboard(elId, players) {
   const el = document.getElementById(elId);
   el.innerHTML = '';
   players.forEach((p, i) => {
-    el.innerHTML += `<div class="score-row"><span>${i+1}. ${p.name}</span><strong>${p.score} pkt</strong></div>`;
+    el.innerHTML += `<div class="score-row"><span>${i+1}. ${escapeHtml(p.name)}</span><strong>${p.score} pkt</strong></div>`;
   });
 }
 

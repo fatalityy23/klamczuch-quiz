@@ -78,6 +78,15 @@
 
 <script>
 const socket = io();
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+function addOption(select, value, text) {
+  const option = document.createElement('option');
+  option.value = value;
+  option.textContent = text;
+  select.appendChild(option);
+}
 function adminLogin() {
   const pwd = document.getElementById('pwd').value;
   fetch('/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password: pwd }) })
@@ -110,23 +119,25 @@ socket.on('state', s => {
       const isRev = s.revealedAnswers?.some(r => r.index === i);
       preview.innerHTML += `
         <div class="player-row" style="color:${isRev ? 'var(--green)' : '#777'}; border:none; padding: 4px 0;">
-          <span>${i+1}. ${a.text}</span>
+          <span>${i+1}. ${escapeHtml(a.text)}</span>
           <span>${a.points} pkt</span>
         </div>`;
     });
   }
 
   document.getElementById('players-list').innerHTML = (s.players || []).map(p => {
+    const safeName = escapeHtml(p.name);
+    const encodedName = encodeURIComponent(p.name);
     const powerupIcon = p.powerupUsed 
         ? '<span class="powerup-icon powerup-used" title="PowerUP wykorzystany">🌟</span>' 
         : '<span class="powerup-icon powerup-active" title="PowerUP aktywny">🌟</span>';
 
     return `
     <div class="player-row">
-      <span>${p.name} ${p.isLiar ? '🎭' : ''} ${powerupIcon} <small>(${p.connected ? '🟢' : '🔴'})</small></span>
+      <span>${safeName} ${p.isLiar ? 'LIAR' : ''} ${powerupIcon} <small>(${p.connected ? 'ONLINE' : 'OFFLINE'})</small></span>
       <div>
         <span>${p.score} pkt</span>
-        <button class="btn-accent" style="padding: 5px 10px; font-size: 0.8rem; margin-left: 10px;" onclick="if(confirm('Wyrzucić gracza ${p.name}?')) socket.emit('kickPlayer', {playerName: '${p.name}'})">Wyrzuć</button>
+        <button class="btn-accent" style="padding: 5px 10px; font-size: 0.8rem; margin-left: 10px;" onclick="kickPlayerFromButton('${encodedName}')">Wyrzuc</button>
       </div>
     </div>`;
   }).join('');
@@ -137,14 +148,20 @@ socket.on('state', s => {
     document.getElementById('ov-player').textContent = s.lastWrongAnswer.playerName;
     document.getElementById('ov-answer').textContent = s.lastWrongAnswer.text;
     const sel = document.getElementById('override-select');
-    sel.innerHTML = '<option value="">-- Wybierz poprawną --</option>';
+    sel.innerHTML = '';
+    addOption(sel, '', '-- Wybierz poprawna --');
     s.allAnswers.forEach((a, i) => {
       if(!s.revealedAnswers?.some(r => r.index === i)) {
-        sel.innerHTML += `<option value="${i}">${a.text} (${a.points})</option>`;
+        addOption(sel, i, `${a.text} (${a.points})`);
       }
     });
   } else ovPanel.style.display = 'none';
 });
+
+function kickPlayerFromButton(encodedName) {
+  const playerName = decodeURIComponent(encodedName);
+  if (confirm(`Wyrzucic gracza ${playerName}?`)) socket.emit('kickPlayer', { playerName });
+}
 
 function submitOverride() {
   const idx = document.getElementById('override-select').value;

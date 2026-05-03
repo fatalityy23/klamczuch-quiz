@@ -2,6 +2,16 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const {
+  matchAnswer,
+  sortPlayersArray,
+  sanitizePlayerName,
+  sanitizeAnswer,
+  isValidQuestionSet,
+  serializePlayer,
+  validateVote,
+  applyVotingResults
+} = require('./lib/gameLogic');
 
 const app = express();
 const server = http.createServer(app);
@@ -16,7 +26,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const VOTING_ROUNDS = [2, 4, 6, 8, 10];
 
-const FORBIDDEN_WORDS = ['cwel', 'nigger', 'czarnuch'];
 
 let gameState = {
   phase: 'lobby',
@@ -189,59 +198,8 @@ function getQuestions(setId) {
     return getSet1(); 
 }
 
-function levenshtein(a, b) {
-  const m = a.length, n = b.length;
-  const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-  for (let i = 1; i <= m; i++)
-    for (let j = 1; j <= n; j++)
-      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
-  return dp[m][n];
-}
-
-function normalize(str) {
-  return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();
-}
-
-function matchAnswer(input, answers, revealedIdxs) {
-  const normInput = normalize(input);
-  for (let i = 0; i < answers.length; i++) {
-    if (revealedIdxs.includes(i)) continue;
-    const normAnswer = normalize(answers[i].text);
-    
-    if (normAnswer === normInput) return i;
-    
-    if (normInput.length >= 3 && (normAnswer.startsWith(normInput) || normAnswer.split(' ').some(w => w.startsWith(normInput)))) return i;
-    
-    if (normInput.length >= 3) {
-        const threshold = Math.min(2, Math.max(1, Math.floor(Math.min(normInput.length, normAnswer.length) * 0.25)));
-        const dist = levenshtein(normInput, normAnswer);
-        
-        if (dist <= threshold) {
-            if (dist === 2 && normInput[0] !== normAnswer[0]) continue;
-            return i;
-        }
-    }
-  }
-  return -1;
-}
-
-function sortPlayersArray(playersArr) {
-    return [...playersArr].sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score;
-        for (let pts = 1000; pts >= 100; pts -= 100) {
-            const aC = a.pointsHistory ? (a.pointsHistory[pts] || 0) : 0;
-            const bC = b.pointsHistory ? (b.pointsHistory[pts] || 0) : 0;
-            if (aC !== bC) return bC - aC;
-        }
-        return 0; 
-    });
-}
-
-function getPlayerList() {
-  return sortPlayersArray(Object.values(gameState.players)).map(p => ({
-    name: p.name, score: p.score, connected: p.connected, isLiar: p.isLiar, wrongAnswers: p.wrongAnswers, powerupUsed: p.powerupUsed, pointsSinceLastVote: p.pointsSinceLastVote
-  }));
+function getPlayerList(options = {}) {
+  return sortPlayersArray(Object.values(gameState.players)).map(p => serializePlayer(p, options));
 }
 
 function broadcastState() {
@@ -257,10 +215,7 @@ function broadcastState() {
     isPaused: gameState.isPaused,
     lastVotingChanges: gameState.lastVotingChanges,
     lastRecoveredPoints: gameState.lastRecoveredPoints,
-    powerupsThisRound: gameState.powerupsThisRound, 
     endReason: gameState.endReason,
-    finalVotes: gameState.finalVotes, 
-    finalTally: gameState.finalTally,
     rulesUnderstood: gameState.rulesUnderstood,
     lastVoteScores: gameState.lastVoteScores,
     isVotingNext: isVotingNext,
@@ -268,10 +223,7 @@ function broadcastState() {
     
     battlingPlayers: gameState.battlingPlayers,
     disqualifiedFromBattle: gameState.disqualifiedFromBattle,
-    spectators: gameState.spectators,
-    finalScenario: gameState.finalScenario,
-    finalWinner: gameState.finalWinner,
-    finalTieResolved: gameState.finalTieResolved
+    spectators: gameState.spectators
   };
 
   if (gameState.roundData) {
@@ -290,8 +242,20 @@ function broadcastState() {
   }
 
   if (['voting', 'votingResults', 'preFinal', 'finalVoting'].includes(gameState.phase)) {
-    base.votes = gameState.votes;
     base.votingTimeLeft = gameState.votingTimeLeft;
+  }
+
+  if (['votingResults', 'finalSummary'].includes(gameState.phase)) {
+    base.votes = gameState.votes;
+    base.powerupsThisRound = gameState.powerupsThisRound;
+  }
+
+  if (gameState.phase === 'finalSummary') {
+    base.finalScenario = gameState.finalScenario;
+    base.finalWinner = gameState.finalWinner;
+    base.finalTieResolved = gameState.finalTieResolved;
+    base.finalVotes = gameState.finalVotes;
+    base.finalTally = gameState.finalTally;
   }
   
   if (gameState.phase === 'speeches') {
@@ -309,7 +273,7 @@ function broadcastState() {
   });
 
   if (gameState.adminSocketId) {
-    const adminPayload = { ...base, votes: gameState.votes, allAnswers: gameState.roundData?.answers, liarName: gameState.liarName, lastWrongAnswer: gameState.lastWrongAnswer };
+    const adminPayload = { ...base, players: getPlayerList({ revealLiar: true }), votes: gameState.votes, powerupsThisRound: gameState.powerupsThisRound, allAnswers: gameState.roundData?.answers, liarName: gameState.liarName, lastWrongAnswer: gameState.lastWrongAnswer, finalScenario: gameState.finalScenario, finalWinner: gameState.finalWinner, finalTieResolved: gameState.finalTieResolved, finalVotes: gameState.finalVotes, finalTally: gameState.finalTally };
     io.to(gameState.adminSocketId).emit('state', adminPayload);
   }
 }
@@ -356,15 +320,14 @@ function startBattlePrep(battlers) {
     gameState.disqualifiedFromBattle = [];
     gameState.spectators = Object.keys(gameState.players).filter(p => !battlers.includes(p));
     gameState.isAnswerLocked = true;
-    
+
     broadcastState();
-    
-    io.emit('timerStart', { duration: 5, phase: 'battlePrep', message: 'Walka o 10. hasło! Przygotuj się!' });
-    
-    setTimeout(() => {
-        if(gameState.isPaused) {}
-        startBattle();
-    }, 5000);
+
+    io.emit('timerStart', { duration: 5, phase: 'battlePrep', message: 'Walka o 10. haslo! Przygotuj sie!' });
+
+    runTransition(5, () => {
+      if (gameState.phase === 'battlePrep') startBattle();
+    });
 }
 
 function startBattle() {
@@ -485,85 +448,7 @@ function resolveVoting() {
   clearInterval(gameState.votingInterval);
   gameState.phase = 'votingResults';
 
-  const tally = {};
-  Object.values(gameState.votes).forEach(vName => {
-    if (vName !== 'ABSTAIN') {
-        tally[vName] = (tally[vName] || 0) + 1; 
-    }
-  });
-
-  let maxVotes = 0;
-  let accusedName = null;
-  let isTie = false;
-
-  for (const [name, count] of Object.entries(tally)) {
-    if (count > maxVotes) { 
-        maxVotes = count; 
-        accusedName = name; 
-        isTie = false; 
-    } else if (count === maxVotes) {
-        isTie = true;
-    }
-  }
-  
-  if (isTie) {
-      accusedName = null;
-  }
-
-  const changes = {};
-  let liarCaught = (accusedName === gameState.liarName && maxVotes >= 3);
-  let innocentCaught = (accusedName !== null && accusedName !== gameState.liarName && accusedName !== 'ABSTAIN' && maxVotes >= 3);
-  let isRound10 = (gameState.currentRound === 10);
-  
-  let recovered = 0;
-  let liarMultiplier = gameState.powerupsThisRound[gameState.liarName] ? 2 : 1;
-
-  if (liarCaught) {
-    if (gameState.players[gameState.liarName]) {
-        if (gameState.hiddenLiarPoints > 0) {
-            gameState.players[gameState.liarName].score += gameState.hiddenLiarPoints;
-            recovered = gameState.hiddenLiarPoints;
-            changes[gameState.liarName] = recovered; 
-        }
-        
-        let penalty = Math.floor((gameState.players[gameState.liarName].pointsSinceLastVote || 0) / 2);
-        gameState.players[gameState.liarName].score = Math.max(0, gameState.players[gameState.liarName].score - penalty);
-        changes[gameState.liarName] = (changes[gameState.liarName] || 0) - penalty;
-    }
-    
-    Object.entries(gameState.votes).forEach(([voterName, votedFor]) => {
-      if (votedFor === gameState.liarName && voterName !== gameState.liarName) {
-          if(gameState.players[voterName]) {
-              let mult = gameState.powerupsThisRound[voterName] ? 2 : 1;
-              gameState.players[voterName].score += 500 * mult;
-              changes[voterName] = 500 * mult;
-          }
-      }
-    });
-
-    gameState.hiddenLiarPoints = 0;
-
-  } else if (innocentCaught) {
-    Object.entries(gameState.votes).forEach(([voterName, votedFor]) => {
-      if (votedFor === accusedName) {
-          if(gameState.players[voterName]) {
-              let mult = gameState.powerupsThisRound[voterName] ? 2 : 1;
-              gameState.players[voterName].score = Math.max(0, gameState.players[voterName].score - 500 * mult);
-              changes[voterName] = -500 * mult;
-          }
-      }
-    });
-    gameState.hiddenLiarPoints += 700 * liarMultiplier;
-  }
-
-  if (isRound10 && gameState.hiddenLiarPoints > 0 && !liarCaught) {
-      if (gameState.players[gameState.liarName]) {
-          gameState.players[gameState.liarName].score += gameState.hiddenLiarPoints;
-          recovered = gameState.hiddenLiarPoints;
-          changes[gameState.liarName] = (changes[gameState.liarName] || 0) + recovered;
-      }
-      gameState.hiddenLiarPoints = 0;
-  }
+  const { accusedName, liarCaught, recovered, changes } = applyVotingResults(gameState);
 
   gameState.lastRecoveredPoints = recovered;
   gameState.lastVotingChanges = changes;
@@ -792,27 +677,22 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('joinGame', ({ name }) => {
-    const normName = name.trim();
-    if (!normName) return;
-
-    const lowerName = normName.toLowerCase();
-    if (FORBIDDEN_WORDS.some(word => lowerName.includes(word))) {
-      socket.emit('error', 'To bardzo nieładna nazwa. Nie możesz takiej ustawić!');
-      return;
-    }
+  socket.on('joinGame', ({ name } = {}) => {
+    const nameResult = sanitizePlayerName(name);
+    if (!nameResult.ok) { socket.emit('error', nameResult.error); return; }
+    const normName = nameResult.name;
 
     if (gameState.players[normName]) {
       if (gameState.players[normName].connected) {
-        socket.emit('error', 'Gracz o tym imieniu jest już w grze.');
+        socket.emit('error', 'Gracz o tym imieniu jest juz w grze.');
         return;
       }
       gameState.players[normName].socketId = socket.id;
       gameState.players[normName].connected = true;
       broadcastState();
     } else {
-      if (gameState.phase !== 'lobby') { socket.emit('error', 'Gra już trwa.'); return; }
-      if (Object.keys(gameState.players).length >= 7) { socket.emit('error', 'Maksymalna liczba graczy osiągnięta.'); return; }
+      if (gameState.phase !== 'lobby') { socket.emit('error', 'Gra juz trwa.'); return; }
+      if (Object.keys(gameState.players).length >= 7) { socket.emit('error', 'Maksymalna liczba graczy osiagnieta.'); return; }
       gameState.players[normName] = { name: normName, socketId: socket.id, score: 0, isLiar: false, connected: true, wrongAnswers: 0, pointsHistory: {}, powerupUsed: false, pointsSinceLastVote: 0 };
       broadcastState();
     }
@@ -840,9 +720,10 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  socket.on('startGame', ({ questionSet }) => {
+  socket.on('startGame', ({ questionSet } = {}) => {
     if (socket.id !== gameState.adminSocketId) return;
     if (Object.keys(gameState.players).length < 2) { socket.emit('error', 'Potrzeba co najmniej 2 graczy.'); return; }
+    if (!isValidQuestionSet(questionSet)) { socket.emit('error', 'Nieprawidlowy zestaw pytan.'); return; }
     
     gameState.questions = getQuestions(questionSet);
     gameState.currentRound = 0;
@@ -872,8 +753,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('submitAnswer', ({ answer }) => {
-    if (gameState.isPaused || gameState.isAnswerLocked) return;
+  socket.on('submitAnswer', ({ answer } = {}) => {
+    const cleanAnswer = sanitizeAnswer(answer);
+    if (!cleanAnswer || gameState.isPaused || gameState.isAnswerLocked) return;
     
     const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
     if (!player) return;
@@ -882,7 +764,7 @@ io.on('connection', (socket) => {
         if (!gameState.battlingPlayers.includes(player.name) || gameState.disqualifiedFromBattle.includes(player.name)) return;
         
         const rd = gameState.roundData;
-        const idx = matchAnswer(answer, rd.answers, rd.revealedAnswers.map(r => r.index));
+        const idx = matchAnswer(cleanAnswer, rd.answers, rd.revealedAnswers.map(r => r.index));
         
         if (idx >= 0) {
             clearInterval(gameState.turnInterval);
@@ -922,7 +804,7 @@ io.on('connection', (socket) => {
     clearInterval(gameState.turnInterval);
 
     const rd = gameState.roundData;
-    const idx = matchAnswer(answer, rd.answers, rd.revealedAnswers.map(r => r.index));
+    const idx = matchAnswer(cleanAnswer, rd.answers, rd.revealedAnswers.map(r => r.index));
 
     if (idx >= 0) {
       const ans = rd.answers[idx];
@@ -935,8 +817,8 @@ io.on('connection', (socket) => {
       io.emit('timerStart', { duration: 4, phase: 'reveal', correct: true, message: `Trafiłeś! +${ans.points} pkt` });
       gameState.revealTimer = setTimeout(() => nextTurn(), 4000);
     } else {
-      gameState.lastWrongAnswer = { playerName: player.name, text: answer };
-      rd.wrongAnswersList.push({ text: answer, byName: player.name });
+      gameState.lastWrongAnswer = { playerName: player.name, text: cleanAnswer };
+      rd.wrongAnswersList.push({ text: cleanAnswer, byName: player.name });
 
       io.emit('timerStart', { duration: 4, phase: 'reveal', correct: false, message: 'Zła odpowiedź!' });
       broadcastState();
@@ -944,8 +826,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('adminOverride', ({ answerIndex }) => {
-    if (socket.id !== gameState.adminSocketId || !gameState.lastWrongAnswer || gameState.phase !== 'round') return;
+  socket.on('adminOverride', ({ answerIndex } = {}) => {
+    if (socket.id !== gameState.adminSocketId || !gameState.lastWrongAnswer || !['round', 'battle'].includes(gameState.phase)) return;
+    if (!Number.isInteger(answerIndex)) return;
     
     const playerName = gameState.lastWrongAnswer.playerName;
     const player = gameState.players[playerName];
@@ -968,10 +851,12 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('vote', ({ votedName, usePowerup }) => {
+  socket.on('vote', ({ votedName, usePowerup } = {}) => {
     if (!['voting', 'finalVoting'].includes(gameState.phase)) return;
     const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
     if (!player) return;
+    const voteResult = validateVote({ phase: gameState.phase, playerName: player.name, votedName, players: gameState.players, top2: gameState.top2 });
+    if (!voteResult.ok) { socket.emit('error', voteResult.error); return; }
     
     if (usePowerup && !player.powerupUsed && gameState.phase === 'voting') {
         player.powerupUsed = true;
@@ -987,7 +872,7 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  socket.on('kickPlayer', ({ playerName }) => {
+  socket.on('kickPlayer', ({ playerName } = {}) => {
     if (socket.id !== gameState.adminSocketId) return;
     const p = gameState.players[playerName];
     if (p) {
