@@ -16,7 +16,7 @@ const {
 } = require('./lib/gameLogic');
 const { GAME_CONFIG } = require('./lib/config');
 const { getQuestions, getQuestionSetIds, validateQuestionSet, reloadQuestionSets } = require('./lib/questions');
-const { getVotingStatus, resolveFinalWinner, tallyFinalVotes } = require('./lib/gameFlow');
+const { getVotingStatus, resolveFinalWinner, tallyFinalVotes, sanitizeLiarHistory, sanitizeEventLog } = require('./lib/gameFlow');
 
 const app = express();
 const server = http.createServer(app);
@@ -86,7 +86,7 @@ function clearTransitions() {
   io.emit('globalCountdown', { timeLeft: 0 });
 }
 
-function addEvent(type, message, details = {}) {
+function addEvent(type, message, details = {}, options = {}) {
   const item = {
     id: Date.now() + '-' + Math.random().toString(16).slice(2),
     at: new Date().toISOString(),
@@ -94,7 +94,9 @@ function addEvent(type, message, details = {}) {
     phase: gameState.phase,
     type,
     message,
-    details
+    details,
+    sensitive: Boolean(options.sensitive),
+    publicMessage: options.publicMessage
   };
   gameState.eventLog.unshift(item);
   gameState.eventLog = gameState.eventLog.slice(0, 80);
@@ -157,7 +159,8 @@ function safePublicPayload(base) {
   const payload = {
     ...base,
     players: getPlayerList(),
-    eventLog: gameState.eventLog.slice(0, 20),
+    liarHistory: sanitizeLiarHistory(gameState.liarHistory),
+    eventLog: sanitizeEventLog(gameState.eventLog.slice(0, 20)),
     director: getDirectorState()
   };
 
@@ -321,6 +324,21 @@ function getPlayerList(options = {}) {
   return sortPlayersArray(Object.values(gameState.players)).map(p => serializePlayer(p, options));
 }
 
+function getPlayerSafeBase(base) {
+  const payload = {
+    ...base,
+    liarHistory: sanitizeLiarHistory(gameState.liarHistory),
+    eventLog: sanitizeEventLog(gameState.eventLog.slice(0, 20))
+  };
+
+  if (gameState.phase !== 'finalSummary') {
+    delete payload.liarName;
+    delete payload.finalLiarLabel;
+  }
+
+  return payload;
+}
+
 function broadcastState() {
   const isVotingNext = VOTING_ROUNDS.includes(gameState.currentRound);
   const showDelta = (isVotingNext && gameState.currentRound > 2) || gameState.phase === 'finalSummary' || gameState.phase === 'voting' || gameState.phase === 'finalVoting';
@@ -330,7 +348,7 @@ function broadcastState() {
     players: getPlayerList(),
     currentRound: gameState.currentRound,
     totalRounds: gameState.totalRounds,
-    liarHistory: gameState.liarHistory,
+    liarHistory: sanitizeLiarHistory(gameState.liarHistory),
     isPaused: gameState.isPaused,
     lastVotingChanges: gameState.lastVotingChanges,
     lastRecoveredPoints: gameState.lastRecoveredPoints,
@@ -339,7 +357,7 @@ function broadcastState() {
     lastVoteScores: gameState.lastVoteScores,
     isVotingNext: isVotingNext,
     showDelta: showDelta,
-    eventLog: gameState.eventLog.slice(0, 20),
+    eventLog: sanitizeEventLog(gameState.eventLog.slice(0, 20)),
     director: getDirectorState(),
 
     battlingPlayers: gameState.battlingPlayers,
@@ -393,7 +411,7 @@ function broadcastState() {
 
   Object.values(gameState.players).forEach(player => {
     if (!player.connected || !player.socketId) return;
-    const payload = { ...base, myName: player.name, myPowerupUsed: player.powerupUsed, amILiar: player.isLiar };
+    const payload = { ...getPlayerSafeBase(base), myName: player.name, myPowerupUsed: player.powerupUsed, amILiar: player.isLiar };
     if (player.isLiar && gameState.roundData && ['round', 'revealingAnswers', 'roundSummary', 'scoreboard', 'battlePrep', 'battle'].includes(gameState.phase)) {
       payload.liarAnswers = gameState.roundData.answers;
     }
@@ -401,7 +419,7 @@ function broadcastState() {
   });
 
   if (gameState.adminSocketId) {
-    const adminPayload = { ...base, players: getPlayerList({ revealLiar: true }), votes: gameState.votes, votingStatus: getVotingStatus(gameState), powerupsThisRound: gameState.powerupsThisRound, allAnswers: gameState.roundData?.answers, liarName: gameState.liarName, lastWrongAnswer: gameState.lastWrongAnswer, lastAdminOverride: gameState.lastAdminOverride, finalScenario: gameState.finalScenario, finalWinner: gameState.finalWinner, finalTieResolved: gameState.finalTieResolved, finalVotes: gameState.finalVotes, finalTally: gameState.finalTally, questionSets: getQuestionSetSummaries() };
+    const adminPayload = { ...base, liarHistory: sanitizeLiarHistory(gameState.liarHistory, { revealAll: true }), eventLog: sanitizeEventLog(gameState.eventLog.slice(0, 20), { revealSensitive: true }), players: getPlayerList({ revealLiar: true }), votes: gameState.votes, votingStatus: getVotingStatus(gameState), powerupsThisRound: gameState.powerupsThisRound, allAnswers: gameState.roundData?.answers, liarName: gameState.liarName, lastWrongAnswer: gameState.lastWrongAnswer, lastAdminOverride: gameState.lastAdminOverride, finalScenario: gameState.finalScenario, finalWinner: gameState.finalWinner, finalTieResolved: gameState.finalTieResolved, finalVotes: gameState.finalVotes, finalTally: gameState.finalTally, questionSets: getQuestionSetSummaries() };
     io.to(gameState.adminSocketId).emit('state', adminPayload);
   }
 
@@ -584,7 +602,8 @@ function resolveVoting() {
   gameState.lastRecoveredPoints = recovered;
   gameState.lastVotingChanges = changes;
   gameState.liarHistory.push({ round: gameState.currentRound, liarName: gameState.liarName, caught: liarCaught, innocentCaught, accusedName: accusedName || 'Brak' });
-  addEvent('voting', liarCaught ? 'Klamczuch zostal wykryty: ' + gameState.liarName + '.' : 'Klamczuch nie zostal wykryty.', { accusedName, changes, recovered });
+  const votingMessage = liarCaught ? 'Klamczuch zostal wykryty: ' + gameState.liarName + '.' : 'Klamczuch nie zostal wykryty.';
+  addEvent('voting', votingMessage, { accusedName, changes, recovered }, { sensitive: true, publicMessage: votingMessage });
 
   if (liarCaught) {
     const previousLiar = gameState.liarName;

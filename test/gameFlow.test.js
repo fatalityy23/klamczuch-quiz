@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { getVotingStatus, resolveFinalWinner, tallyFinalVotes } = require('../lib/gameFlow');
+const { getVotingStatus, resolveFinalWinner, tallyFinalVotes, sanitizeLiarHistory, sanitizeEventLog } = require('../lib/gameFlow');
 const { getQuestions, getQuestionSetIds, validateQuestionSet } = require('../lib/questions');
 
 test('getVotingStatus reports missing regular votes', () => {
@@ -69,4 +69,30 @@ test('all playable JSON question sets have enough final-round data', () => {
     const validation = validateQuestionSet(getQuestions(setId));
     assert.equal(validation.ok, true, `${setId}: ${validation.errors.join(', ')}`);
   }
+});
+
+test('sanitizeLiarHistory hides uncaught liar names from player payloads', () => {
+  const history = [
+    { round: 2, liarName: 'Ala', caught: false, accusedName: 'Ola' },
+    { round: 4, liarName: 'Jan', caught: true, accusedName: 'Jan' },
+    { round: 11, liarName: 'Ola', caught: false, accusedName: null }
+  ];
+
+  assert.deepEqual(sanitizeLiarHistory(history), [
+    { round: 2, liarName: null, caught: false, accusedName: 'Ola' },
+    { round: 4, liarName: 'Jan', caught: true, accusedName: 'Jan' },
+    { round: 11, liarName: 'Ola', caught: false, accusedName: null }
+  ]);
+});
+
+test('sanitizeEventLog removes private details from player payloads', () => {
+  const events = [
+    { message: 'Klamczuch nie zostal wykryty.', details: { changes: { Ala: 500 } }, sensitive: true, publicMessage: 'Klamczuch nie zostal wykryty.' },
+    { message: 'Start rundy.', details: { questionId: 1 } }
+  ];
+
+  assert.deepEqual(sanitizeEventLog(events), [
+    { message: 'Klamczuch nie zostal wykryty.', details: {}, sensitive: true, publicMessage: 'Klamczuch nie zostal wykryty.' },
+    { message: 'Start rundy.', details: {} }
+  ]);
 });
