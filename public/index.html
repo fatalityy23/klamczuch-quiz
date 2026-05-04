@@ -182,6 +182,7 @@
   </div>
   <div class="card" style="max-width:450px; margin:0 auto; width:100%;">
     <h3 style="text-align: center;">Dołącz do gry</h3>
+    <p id="test-mode-info" style="display:none; color:var(--yellow); text-align:center; margin-top:8px; font-weight:800;"></p>
     <input type="text" id="player-name" placeholder="Twoje imię..." maxlength="20" style="margin:15px 0;"/>
     <button onclick="joinGame()" style="width:100%;">Dołącz do zabawy</button>
     <p id="join-error" style="color:var(--accent); margin-top:15px; text-align:center; font-weight:600;"></p>
@@ -373,7 +374,23 @@ let timerInterval = null;
 let currentPhase = ''; 
 let lastSoundTime = 0; 
 let isGamePaused = false; 
-let reconnectToken = localStorage.getItem('klamczuch_token') || '';
+const urlParams = new URLSearchParams(window.location.search);
+const testSlot = urlParams.get('slot') || urlParams.get('testPlayer') || '';
+const isTestMode = urlParams.get('test') === '1' || Boolean(testSlot);
+const storage = isTestMode ? sessionStorage : localStorage;
+const nameKey = isTestMode ? `klamczuch_name_${testSlot || 'test'}` : 'klamczuch_name';
+const tokenKey = isTestMode ? `klamczuch_token_${testSlot || 'test'}` : 'klamczuch_token';
+let reconnectToken = storage.getItem(tokenKey) || '';
+
+if (isTestMode) {
+  window.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('test-mode-info');
+    if (el) {
+      el.textContent = `Tryb testowy: ${testSlot || 'osobna karta'}`;
+      el.style.display = 'block';
+    }
+  });
+}
 
 let isMuted = localStorage.getItem('kq_muted') === 'true';
 let globalVolume = localStorage.getItem('kq_volume') ? parseFloat(localStorage.getItem('kq_volume')) : 0.5;
@@ -453,7 +470,7 @@ function playTick() {
 }
 
 window.onload = () => {
-  const savedName = localStorage.getItem('klamczuch_name');
+  const savedName = storage.getItem(nameKey) || testSlot;
   if (savedName) {
       document.getElementById('player-name').value = savedName;
       setTimeout(() => joinGame(), 500); 
@@ -469,7 +486,7 @@ function joinGame() {
   initAudio();
   const name = document.getElementById('player-name').value.trim();
   if (name) {
-    localStorage.setItem('klamczuch_name', name);
+    storage.setItem(nameKey, name);
     socket.emit('joinGame', { name, token: reconnectToken });
   }
 }
@@ -477,11 +494,11 @@ function joinGame() {
 socket.on('joined', ({ name, token }) => {
     if (name) {
       myName = name;
-      localStorage.setItem('klamczuch_name', name);
+      storage.setItem(nameKey, name);
     }
     if (token) {
       reconnectToken = token;
-      localStorage.setItem('klamczuch_token', token);
+      storage.setItem(tokenKey, token);
     }
     document.getElementById('join-error').textContent = '';
 });
@@ -505,8 +522,8 @@ socket.on('adminNotification', (data) => {
 
 socket.on('kicked', (msg) => {
     alert(msg);
-    localStorage.removeItem('klamczuch_name');
-    localStorage.removeItem('klamczuch_token');
+    storage.removeItem(nameKey);
+    storage.removeItem(tokenKey);
     window.location.reload(); 
 });
 
@@ -793,7 +810,18 @@ socket.on('state', s => {
         if (s.phase === 'finalVoting') {
             targets = s.players.filter(p => s.top2 && s.top2.includes(p.name));
         } else {
-            targets = s.players.filter(p => p.name !== myName);
+            const protectedTargets = new Set(s.protectedVoteTargets || []);
+            targets = s.players.filter(p => p.name !== myName && !protectedTargets.has(p.name));
+            if (protectedTargets.size > 0) {
+              const protectedNames = [...protectedTargets].map(escapeHtml).join(', ');
+              const info = document.createElement('div');
+              info.style.gridColumn = '1 / -1';
+              info.style.color = 'var(--yellow)';
+              info.style.textAlign = 'center';
+              info.style.fontWeight = '800';
+              info.textContent = 'Nie mozna teraz glosowac na: ' + protectedNames;
+              grid.appendChild(info);
+            }
         }
 
         targets.forEach(p => {

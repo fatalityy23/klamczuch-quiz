@@ -65,6 +65,12 @@ test('validateVote blocks finalist votes and invalid targets', () => {
   assert.equal(validateVote({ phase: 'voting', playerName: 'A', votedName: 'ABSTAIN', players }).ok, true);
 });
 
+test('validateVote blocks protected false-accusation targets', () => {
+  const players = { A: {}, B: {}, C: {} };
+  assert.equal(validateVote({ phase: 'voting', playerName: 'A', votedName: 'C', players, protectedVoteTargets: ['C'] }).ok, false);
+  assert.equal(validateVote({ phase: 'voting', playerName: 'A', votedName: 'B', players, protectedVoteTargets: ['C'] }).ok, true);
+});
+
 test('resolveAccused requires unique top vote target', () => {
   assert.deepEqual(resolveAccused({ A: 'B', C: 'B', D: 'A' }).accusedName, 'B');
   assert.equal(resolveAccused({ A: 'B', C: 'D' }).accusedName, null);

@@ -69,6 +69,7 @@ let gameState = {
   rulesUnderstood: {},
   eventLog: [],
   reconnectGraceTimers: {},
+  protectedVoteTargets: [],
   selectedQuestionSet: 'set1',
 
   battlingPlayers: [],
@@ -358,6 +359,7 @@ function broadcastState() {
     isVotingNext: isVotingNext,
     showDelta: showDelta,
     eventLog: sanitizeEventLog(gameState.eventLog.slice(0, 20)),
+    protectedVoteTargets: gameState.protectedVoteTargets,
     director: getDirectorState(),
 
     battlingPlayers: gameState.battlingPlayers,
@@ -615,9 +617,21 @@ function resolveVoting() {
   Object.values(gameState.players).forEach(p => {
       gameState.lastVoteScores[p.name] = p.score;
       p.pointsSinceLastVote = 0;
-  });
+    });
 
-  broadcastState();
+    if (liarCaught) {
+      gameState.protectedVoteTargets = [];
+      addEvent('voting', 'Lista chronionych celow glosowania zostala wyczyszczona po wykryciu klamczucha.');
+    } else if (innocentCaught && accusedName) {
+      const connectedVoters = Object.values(gameState.players).filter(p => p.connected).length;
+      const hasMajority = maxVotes > connectedVoters / 2;
+      if (hasMajority && !gameState.protectedVoteTargets.includes(accusedName)) {
+        gameState.protectedVoteTargets.push(accusedName);
+        addEvent('voting', accusedName + ' byl nieslusznie wskazany wiekszoscia glosow i jest chroniony w kolejnych glosowaniach.');
+      }
+    }
+
+    broadcastState();
   runTransition(GAME_CONFIG.votingResultsTime, () => {
     if (gameState.phase === 'votingResults') startNextRound();
   });
@@ -927,6 +941,7 @@ io.on('connection', (socket) => {
     gameState.isPaused = false;
     gameState.rulesUnderstood = {};
     gameState.eventLog = [];
+    gameState.protectedVoteTargets = [];
     gameState.roundData = null;
     gameState.lastAdminOverride = null;
     gameState.lastWrongAnswer = null;
@@ -953,6 +968,7 @@ io.on('connection', (socket) => {
     gameState.currentRound = 0;
     gameState.liarHistory = [];
     gameState.eventLog = [];
+    gameState.protectedVoteTargets = [];
     gameState.endReason = null;
     gameState.lastAdminOverride = null;
     gameState.lastWrongAnswer = null;
@@ -1120,7 +1136,7 @@ io.on('connection', (socket) => {
     if (!['voting', 'finalVoting'].includes(gameState.phase)) return;
     const player = Object.values(gameState.players).find(p => p.socketId === socket.id);
     if (!player) return;
-    const voteResult = validateVote({ phase: gameState.phase, playerName: player.name, votedName, players: gameState.players, top2: gameState.top2 });
+    const voteResult = validateVote({ phase: gameState.phase, playerName: player.name, votedName, players: gameState.players, top2: gameState.top2, protectedVoteTargets: gameState.protectedVoteTargets });
     if (!voteResult.ok) { socket.emit('error', voteResult.error); return; }
 
     if (usePowerup && player.isLiar && gameState.phase === 'voting') {

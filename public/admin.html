@@ -85,6 +85,7 @@
   <section class="card">
     <h2>Status glosowania</h2>
     <div id="voting-status">Brak aktywnego glosowania.</div>
+    <div id="protected-targets" style="margin-top:10px;"></div>
   </section>
 
   <section class="card" id="override-panel" style="display:none; border-color:var(--accent);">
@@ -217,6 +218,13 @@ socket.on('state', s => {
     votingStatusEl.innerHTML = `<div class="metric"><span>Oddano</span><strong>${vs.voteCount}/${vs.expectedVoteCount}</strong></div><p style="margin-top:10px;">Brakuje: <span class="pill">${missing}</span></p>`;
   } else {
     votingStatusEl.textContent = 'Brak aktywnego glosowania.';
+  }
+
+  const protectedEl = document.getElementById('protected-targets');
+  if (protectedEl) {
+    protectedEl.innerHTML = (s.protectedVoteTargets && s.protectedVoteTargets.length)
+      ? 'Chronieni przed kolejnym wskazaniem: ' + s.protectedVoteTargets.map(name => `<span class="pill warn">${escapeHtml(name)}</span>`).join('')
+      : '';
   }
 
   document.getElementById('undo-override-btn').disabled = !s.lastAdminOverride;
