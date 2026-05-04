@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { getVotingStatus, resolveFinalWinner, tallyFinalVotes } = require('../lib/gameFlow');
-const { getQuestions, getQuestionSetIds } = require('../lib/questions');
+const { getQuestions, getQuestionSetIds, validateQuestionSet } = require('../lib/questions');
 
 test('getVotingStatus reports missing regular votes', () => {
   const state = {
@@ -62,4 +62,11 @@ test('question loader exposes JSON sets and returns clones', () => {
   first[0].answers[0].text = 'MUTATED';
   assert.notEqual(second[0].answers[0].text, 'MUTATED');
   assert.equal(getQuestions('unknown').length, 11);
+});
+
+test('all playable JSON question sets have enough final-round data', () => {
+  for (const setId of getQuestionSetIds()) {
+    const validation = validateQuestionSet(getQuestions(setId));
+    assert.equal(validation.ok, true, `${setId}: ${validation.errors.join(', ')}`);
+  }
 });

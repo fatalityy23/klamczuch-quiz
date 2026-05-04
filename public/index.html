@@ -104,10 +104,21 @@
 
   #global-audio-controls {
     position: fixed; top: 15px; right: 15px; z-index: 1000;
-    background: rgba(22, 33, 62, 0.9); border: 1px solid var(--blue);
-    padding: 8px 12px; border-radius: 20px; display: flex; align-items: center; gap: 10px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(5px);
+    background: rgba(12, 14, 24, 0.92); border: 1px solid rgba(255,255,255,0.12);
+    padding: 8px 10px; border-radius: 999px; display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45); backdrop-filter: blur(8px);
   }
+  #mute-btn {
+    width: 34px; height: 34px; border-radius: 50%; display:inline-flex; align-items:center; justify-content:center;
+    cursor:pointer; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); font-size:1rem;
+  }
+  #vol-slider { width:90px; accent-color:var(--blue); cursor:pointer; }
+  .explain-list { display:flex; flex-direction:column; gap:8px; color:var(--muted); padding-left:20px; }
+  .points-breakdown { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:10px; margin-top:18px; }
+  .points-card { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px; }
+  .points-card strong { color:var(--yellow); }
+  .warn { color:var(--yellow); }
+  .demo-badge { display:inline-flex; padding:6px 12px; border-radius:999px; border:1px solid var(--accent); color:var(--accent); margin-bottom:12px; font-weight:800; }
 
   #global-transition-timer {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -152,8 +163,8 @@
 <div id="notification-toast"></div>
 
 <div id="global-audio-controls">
-  <span id="mute-btn" style="cursor:pointer; font-size:1.2rem;" onclick="toggleMute()">🔊</span>
-  <input type="range" id="vol-slider" min="0" max="1" step="0.05" oninput="changeVolume(this.value)" style="width:80px; cursor:pointer;">
+  <span id="mute-btn" onclick="toggleMute()">🔊</span>
+  <input type="range" id="vol-slider" min="0" max="1" step="0.05" oninput="changeVolume(this.value)">
 </div>
 
 <div id="pause-overlay">
@@ -189,9 +200,10 @@
       <li>Na początku gry wybierany jest kłamczuch. Będzie on widział wszystkie odpowiedzi na dane pytanie w rundzie.</li>
       <li>Gracze zdobywają punkty poprzez odpowiadanie na pytanie w rundzie. Są 2 kolejki odpowiadania. Zaczyna gracz z najmniejszą ilością punktów.</li>
       <li>Jeśli w trakcie drugiej kolejki padnie 9 z 10 odpowiedzi, następuje <b>Bitwa o Ostatnie Hasło</b> między graczami, którzy jeszcze nie odpowiadali - kto pierwszy wpisze poprawne hasło, zgarnia punkty!</li>
-      <li>Po rundach 2,4,6,8,10 odbywa się głosowanie na kłamczucha. Wykrycie kłamczucha daje 500 pkt zgadującym. <b>Kłamczuch traci wtedy 500 pkt zebrane z samych odpowiedzi z tych rund!</b></li>
-      <li>Jeśli przynajmniej 3 graczy wskaże niewinną osobę to każdy z nich traci 500 pkt. Kłamczuch zyskuje ukryte 700 pkt.</li>
-	<li>Jeśli kłamczuch zostanie wykryty podczas głosowania to traci połowę punktów za odpowiedzi zdobyte w 2 ostatnich rundach.</li>
+      <li>Po rundach 2,4,6,8,10 odbywa się głosowanie na kłamczucha. Wykrycie kłamczucha daje 500 pkt zgadującym.</li>
+      <li>Za wskazanie niewłaściwej osoby nie ma kary punktowej. Jeśli tłum oskarży niewinnego, kłamczuch dostaje ukryte 500 pkt.</li>
+      <li>Jeśli kłamczuch zostanie wykryty podczas głosowania, traci połowę punktów za odpowiedzi zdobyte od ostatniego głosowania.</li>
+      <li>PowerUP x2 może być użyty tylko przez zwykłego gracza. Kłamczuch widzi go jako zablokowany.</li>
       <li>Do finałowej 11. rundy przechodzi 2 graczy z największą ilością punktów. W finale warianty mogą być różne: 2 kłamczuchów, 1 kłamczuch lub brak kłamczucha! Wygrywa ten z mniejszą ilością głosów oskarżających.</li>
     </ol>
   </div>
@@ -324,6 +336,7 @@
         <div id="voting-tally-list" style="font-size: 1.2rem; display: flex; flex-direction: column; gap: 10px;"></div>
       </div>
     </div>
+    <div id="voting-points-breakdown" class="points-breakdown"></div>
   </div>
 </div>
 
@@ -360,6 +373,7 @@ let timerInterval = null;
 let currentPhase = ''; 
 let lastSoundTime = 0; 
 let isGamePaused = false; 
+let reconnectToken = localStorage.getItem('klamczuch_token') || '';
 
 let isMuted = localStorage.getItem('kq_muted') === 'true';
 let globalVolume = localStorage.getItem('kq_volume') ? parseFloat(localStorage.getItem('kq_volume')) : 0.5;
@@ -456,9 +470,25 @@ function joinGame() {
   const name = document.getElementById('player-name').value.trim();
   if (name) {
     localStorage.setItem('klamczuch_name', name);
-    socket.emit('joinGame', { name });
+    socket.emit('joinGame', { name, token: reconnectToken });
   }
 }
+
+socket.on('joined', ({ name, token }) => {
+    if (name) {
+      myName = name;
+      localStorage.setItem('klamczuch_name', name);
+    }
+    if (token) {
+      reconnectToken = token;
+      localStorage.setItem('klamczuch_token', token);
+    }
+    document.getElementById('join-error').textContent = '';
+});
+
+socket.on('sessionReplaced', () => {
+    document.getElementById('join-error').textContent = 'Ta sesja zostala przeniesiona do nowego okna.';
+});
 
 socket.on('error', (msg) => {
     document.getElementById('join-error').textContent = msg;
@@ -476,6 +506,7 @@ socket.on('adminNotification', (data) => {
 socket.on('kicked', (msg) => {
     alert(msg);
     localStorage.removeItem('klamczuch_name');
+    localStorage.removeItem('klamczuch_token');
     window.location.reload(); 
 });
 
@@ -500,6 +531,26 @@ socket.on('state', s => {
     showScreen('screen-lobby');
     const c = document.getElementById('lobby-players');
     c.innerHTML = s.players.map(p => `<span class="player-chip ${p.connected ? '' : 'offline'}">${escapeHtml(p.name)}</span>`).join('');
+  }
+
+  if (s.phase === 'liarDemo') {
+    showScreen('screen-game');
+    document.getElementById('round-num').textContent = 'DEMO';
+    document.getElementById('my-name-display').textContent = myName;
+    document.getElementById('question-text').innerHTML = `<span class="demo-badge">Przykladowy widok klamczucha</span><br>${escapeHtml(s.questionText)}`;
+    document.getElementById('turn-info').style.display = 'block';
+    document.getElementById('turn-name').textContent = 'Tak wyglada rola klamczucha';
+    document.getElementById('turn-label').textContent = 'W prawdziwej rundzie tylko klamczuch zobaczy komplet odpowiedzi.';
+    document.getElementById('turn-label').style.color = 'var(--muted)';
+    document.getElementById('answer-section').style.display = 'none';
+    document.getElementById('battle-prep-info').style.display = 'none';
+    document.getElementById('revealed-answers-card').style.display = 'none';
+    document.getElementById('wrong-answers-card').style.display = 'none';
+    document.getElementById('scoreboard-card').style.display = 'none';
+    document.getElementById('liar-panel').style.display = 'block';
+    document.getElementById('liar-answers-list').innerHTML = (s.liarAnswers || []).map((a, i) => `
+      <div class="liar-answer"><span>${i + 1}. ${escapeHtml(a.text)}</span><span style="color:var(--yellow)">${a.points}</span></div>
+    `).join('');
   }
 
   if (s.phase === 'round' || s.phase === 'battlePrep' || s.phase === 'battle') {
@@ -639,7 +690,7 @@ socket.on('state', s => {
            <span style="flex:0.5;">${i+1}.</span>
            <span style="flex:2;">${escapeHtml(p.name)}</span>
            <span style="flex:1.5; text-align:right; color:var(--yellow); font-weight:bold;">${p.score} pkt</span>
-           ${s.showDelta ? `<span style="flex:1.5; text-align:right; color:var(--green); font-weight:bold;">+${diff} pkt</span>` : ''}
+            ${s.showDelta ? `<span style="flex:1.5; text-align:right; color:${diff >= 0 ? 'var(--green)' : 'var(--accent)'}; font-weight:bold;">${diff >= 0 ? '+' : ''}${diff} pkt</span>` : ''}
         </div>`;
     });
     table.innerHTML = html;
@@ -694,7 +745,13 @@ socket.on('state', s => {
         sbPanel.style.display = 'block'; 
         
         puContainer.style.display = 'inline-block';
-        if (s.myPowerupUsed && !isPowerupActive) {
+        if (s.amILiar) {
+            isPowerupActive = false;
+            puBtn.classList.add('disabled');
+            puBtn.classList.remove('active');
+            puLabel.textContent = "Jestes klamczuchem - PowerUP tylko dla zwyklych graczy";
+            puLabel.style.color = "var(--muted)";
+        } else if (s.myPowerupUsed && !isPowerupActive) {
             puBtn.classList.add('disabled');
             puBtn.classList.remove('active');
             puLabel.textContent = "Wykorzystano";
@@ -803,8 +860,10 @@ socket.on('state', s => {
 
     const list = document.getElementById('voting-results-list');
     const tallyList = document.getElementById('voting-tally-list');
+    const breakdown = document.getElementById('voting-points-breakdown');
     list.innerHTML = '';
     tallyList.innerHTML = '';
+    breakdown.innerHTML = '';
     myVote = null;
     isPowerupActive = false; 
     
@@ -849,6 +908,17 @@ socket.on('state', s => {
     } else {
         tallyList.innerHTML = `<div style="text-align:center; color:var(--muted); padding:10px;">Brak oddanych głosów</div>`;
     }
+
+    const latest = s.liarHistory[s.liarHistory.length - 1];
+    const cards = [];
+    Object.entries(s.lastVotingChanges || {}).forEach(([name, change]) => {
+      const label = change > 0 ? `+${change} pkt` : `${change} pkt`;
+      cards.push(`<div class="points-card"><strong>${escapeHtml(name)}</strong><br><span style="color:${change >= 0 ? 'var(--green)' : 'var(--accent)'}; font-size:1.4rem; font-weight:800;">${label}</span></div>`);
+    });
+    if (latest && latest.innocentCaught) {
+      cards.push(`<div class="points-card"><strong>Klamczuch</strong><br><span class="warn">Ukryte punkty: ${s.lastRecoveredPoints && s.lastRecoveredPoints > 0 ? '+' + s.lastRecoveredPoints + ' teraz' : '+500 do banku'}</span><br><small style="color:var(--muted)">Glosowanie nie wykrylo klamczucha. Gracze nie traca punktow za bledne wskazanie.</small></div>`);
+    }
+    breakdown.innerHTML = cards.join('');
   }
 
   if (s.phase === 'preFinal') {
@@ -905,8 +975,8 @@ socket.on('state', s => {
     
     let scMsg = '';
     if (s.finalScenario === '0_liars') scMsg = '😲 Czysta gra! ŻADEN z finalistów nie był kłamczuchem!';
-    else if (s.finalScenario === '2_liars') scMsg = '😈 Pełna manipulacja! OBAJ finaliści byli kłamczuchami!';
-    else scMsg = `🎭 Tylko JEDEN kłamczuch w finale! Był nim: <strong style="color:var(--yellow);">${escapeHtml(s.liarName)}</strong>`;
+    else if (s.finalScenario === '2_liars') scMsg = `😈 Pełna manipulacja! Kłamczuchami byli: <strong style="color:var(--yellow);">${escapeHtml(s.finalLiarLabel || 'obaj finaliści')}</strong>`;
+    else scMsg = `🎭 Tylko JEDEN kłamczuch w finale! Był nim: <strong style="color:var(--yellow);">${escapeHtml(s.finalLiarLabel || s.liarName)}</strong>`;
     document.getElementById('final-scenario-msg').innerHTML = scMsg;
 
     const finalVerdictEl = document.getElementById('final-verdict');

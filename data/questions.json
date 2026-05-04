@@ -1651,7 +1651,10 @@
         },
         {
           "text": "Budka Suflera",
-          "points": 500
+          "points": 500,
+          "aliases": [
+            "Budka"
+          ]
         },
         {
           "text": "Maanam",
@@ -1827,11 +1830,17 @@
         },
         {
           "text": "McLaren",
-          "points": 600
+          "points": 600,
+          "aliases": [
+            "Mclaren"
+          ]
         },
         {
           "text": "Aston Martin",
-          "points": 500
+          "points": 500,
+          "aliases": [
+            "Aston"
+          ]
         },
         {
           "text": "Maserati",
@@ -1856,27 +1865,47 @@
       "answers": [
         {
           "text": "Dama z gronostajem",
-          "points": 1000
+          "points": 1000,
+          "aliases": [
+            "Dama z lasiczka"
+          ]
         },
         {
           "text": "Trwałość pamięci",
-          "points": 900
+          "points": 900,
+          "aliases": [
+            "Uporczywosc pamieci",
+            "Cieknace zegary",
+            "Plynace zegary"
+          ]
         },
         {
           "text": "Gwiaździsta noc",
-          "points": 800
+          "points": 800,
+          "aliases": [
+            "Starry Night"
+          ]
         },
         {
           "text": "Narodziny Wenus",
-          "points": 700
+          "points": 700,
+          "aliases": [
+            "Wenus"
+          ]
         },
         {
           "text": "Bitwa pod Grunwaldem",
-          "points": 600
+          "points": 600,
+          "aliases": [
+            "Grunwald"
+          ]
         },
         {
           "text": "Stworzenie Adama",
-          "points": 500
+          "points": 500,
+          "aliases": [
+            "Adam"
+          ]
         },
         {
           "text": "Krzyk",
@@ -1884,11 +1913,17 @@
         },
         {
           "text": "Słoneczniki",
-          "points": 300
+          "points": 300,
+          "aliases": [
+            "Slonecznik"
+          ]
         },
         {
           "text": "Ostatnia Wieczerza",
-          "points": 200
+          "points": 200,
+          "aliases": [
+            "Wieczerza"
+          ]
         },
         {
           "text": "Mona Lisa",
@@ -1940,6 +1975,86 @@
           "points": 100
         }
       ]
+    },
+    {
+      "text": "Znane marki modowe i luksusowe",
+      "answers": [
+        {
+          "text": "Yves Saint Laurent",
+          "points": 1000,
+          "aliases": [
+            "YSL",
+            "Saint Laurent",
+            "Ives Saint Laurent"
+          ]
+        },
+        {
+          "text": "Giorgio Armani",
+          "points": 900,
+          "aliases": [
+            "Armani"
+          ]
+        },
+        {
+          "text": "Louis Vuitton",
+          "points": 800,
+          "aliases": [
+            "LV",
+            "Vuitton"
+          ]
+        },
+        {
+          "text": "Dolce & Gabbana",
+          "points": 700,
+          "aliases": [
+            "Dolce Gabbana",
+            "D&G",
+            "DG"
+          ]
+        },
+        {
+          "text": "Calvin Klein",
+          "points": 600,
+          "aliases": [
+            "CK"
+          ]
+        },
+        {
+          "text": "Ralph Lauren",
+          "points": 500,
+          "aliases": [
+            "Polo Ralph Lauren"
+          ]
+        },
+        {
+          "text": "Tommy Hilfiger",
+          "points": 400,
+          "aliases": [
+            "Tommy"
+          ]
+        },
+        {
+          "text": "Hugo Boss",
+          "points": 300,
+          "aliases": [
+            "Boss"
+          ]
+        },
+        {
+          "text": "Versace",
+          "points": 200,
+          "aliases": [
+            "Gianni Versace"
+          ]
+        },
+        {
+          "text": "Gucci",
+          "points": 100,
+          "aliases": [
+            "Guci"
+          ]
+        }
+      ]
     }
   ],
   "set5": [
@@ -1952,7 +2067,10 @@
         },
         {
           "text": "RPA",
-          "points": 900
+          "points": 900,
+          "aliases": [
+            "Republika Poludniowej Afryki"
+          ]
         },
         {
           "text": "Nowa Zelandia",
@@ -1984,7 +2102,12 @@
         },
         {
           "text": "Wielka Brytania",
-          "points": 100
+          "points": 100,
+          "aliases": [
+            "UK",
+            "Anglia",
+            "Zjednoczone Krolestwo"
+          ]
         }
       ]
     },
@@ -1993,7 +2116,10 @@
       "answers": [
         {
           "text": "Spinki do mankietów",
-          "points": 1000
+          "points": 1000,
+          "aliases": [
+            "Spinki"
+          ]
         },
         {
           "text": "Nakolanniki",
@@ -2058,7 +2184,12 @@
         },
         {
           "text": "Guns N' Roses",
-          "points": 500
+          "points": 500,
+          "aliases": [
+            "Guns N Roses",
+            "Guns and Roses",
+            "GNR"
+          ]
         },
         {
           "text": "Metallica",
@@ -2066,11 +2197,18 @@
         },
         {
           "text": "The Rolling Stones",
-          "points": 300
+          "points": 300,
+          "aliases": [
+            "Rolling Stones",
+            "Stonesi"
+          ]
         },
         {
           "text": "AC/DC",
-          "points": 200
+          "points": 200,
+          "aliases": [
+            "ACDC"
+          ]
         },
         {
           "text": "Queen",
@@ -2099,7 +2237,10 @@
         },
         {
           "text": "Rachunek prawdopodobieństwa",
-          "points": 600
+          "points": 600,
+          "aliases": [
+            "Prawdopodobienstwo"
+          ]
         },
         {
           "text": "Statystyka",
@@ -2156,7 +2297,10 @@
         },
         {
           "text": "Anna",
-          "points": 300
+          "points": 300,
+          "aliases": [
+            "Ania"
+          ]
         },
         {
           "text": "Ada",
@@ -2295,7 +2439,10 @@
         },
         {
           "text": "HP",
-          "points": 200
+          "points": 200,
+          "aliases": [
+            "Hewlett Packard"
+          ]
         },
         {
           "text": "Dell",
@@ -2398,27 +2545,47 @@
       "answers": [
         {
           "text": "Givenchy",
-          "points": 1000
+          "points": 1000,
+          "aliases": [
+            "Givanszi"
+          ]
         },
         {
           "text": "Yves Saint Laurent",
-          "points": 900
+          "points": 900,
+          "aliases": [
+            "YSL",
+            "Saint Laurent",
+            "Ives Saint Laurent"
+          ]
         },
         {
-          "text": "Givenchy",
-          "points": 800
+          "text": "Gucci",
+          "points": 800,
+          "aliases": [
+            "Guci"
+          ]
         },
         {
           "text": "Calvin Klein",
-          "points": 700
+          "points": 700,
+          "aliases": [
+            "CK"
+          ]
         },
         {
           "text": "Hugo Boss",
-          "points": 600
+          "points": 600,
+          "aliases": [
+            "Boss"
+          ]
         },
         {
           "text": "Armani",
-          "points": 500
+          "points": 500,
+          "aliases": [
+            "Giorgio Armani"
+          ]
         },
         {
           "text": "Versace",
@@ -2434,7 +2601,10 @@
         },
         {
           "text": "Paco Rabanne",
-          "points": 100
+          "points": 100,
+          "aliases": [
+            "Rabanne"
+          ]
         }
       ]
     }

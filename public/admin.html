@@ -3,182 +3,240 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin – Kłamczuch</title>
+<title>Admin - Klamczuch</title>
 <script src="/socket.io/socket.io.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#0f0f1a; --card:#1a1a2e; --accent:#e94560; --text:#eaeaea; --green:#2ecc71; --blue:#3498db; }
+  :root { --bg:#0d0f18; --card:#171b2a; --card2:#10131f; --line:#2a3048; --accent:#e94560; --text:#eef2ff; --muted:#9aa3b7; --green:#2ecc71; --blue:#3498db; --yellow:#ffd166; }
   * { box-sizing:border-box; margin:0; padding:0; font-family:'Poppins', sans-serif; }
-  body { background:var(--bg); color:var(--text); padding:20px; }
-  .card { background:var(--card); border-radius:12px; padding:20px; margin-bottom:16px; border:1px solid #333; }
-  button { color:#fff; border:none; border-radius:8px; padding:12px 20px; font-weight:bold; cursor:pointer; margin:5px; transition: opacity 0.2s; }
-  button:hover { opacity:0.8; }
-  .btn-accent { background:var(--accent); } .btn-green { background:var(--green); } .btn-blue { background:var(--blue); } .btn-gray { background:#444; }
-  .player-row { display:flex; justify-content:space-between; align-items: center; padding:10px 0; border-bottom:1px solid #333; }
-  select { background:#111; color:#fff; padding:10px; width:100%; border-radius:8px; margin-top:10px; }
-  .powerup-icon { font-size: 1.2rem; margin-left: 5px; }
-  .powerup-active { text-shadow: 0 0 10px gold; }
-  .powerup-used { opacity: 0.2; filter: grayscale(100%); }
-  .admin-action-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:8px; margin-top:12px; }
-  .admin-action-grid button { width:100%; margin:0; }
-  .status-pill { display:inline-block; background:#111; border:1px solid #333; border-radius:999px; padding:6px 10px; margin:4px; font-size:0.9rem; }
+  body { background:var(--bg); color:var(--text); padding:18px; }
+  h1 { font-size:2rem; margin-bottom:12px; }
+  h2, h3 { margin-bottom:10px; }
+  .layout { max-width:1400px; margin:0 auto; display:grid; grid-template-columns:1.25fr 1fr; gap:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; }
+  .wide { grid-column:1 / -1; }
+  button { color:#fff; border:none; border-radius:8px; padding:11px 14px; font-weight:800; cursor:pointer; transition:opacity .2s, transform .2s; }
+  button:hover { opacity:.86; transform:translateY(-1px); }
+  button:disabled { opacity:.35; cursor:not-allowed; transform:none; }
+  .btn-accent { background:var(--accent); } .btn-green { background:var(--green); } .btn-blue { background:var(--blue); } .btn-gray { background:#4a5168; } .btn-yellow { background:#b88700; }
+  input, select, textarea { background:var(--card2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px; width:100%; }
+  textarea { min-height:420px; font-family:Consolas, monospace; font-size:.9rem; resize:vertical; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:8px; }
+  .status-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-top:10px; }
+  .metric { background:var(--card2); border:1px solid var(--line); border-radius:8px; padding:12px; }
+  .metric span { color:var(--muted); font-size:.85rem; display:block; }
+  .metric strong { font-size:1.2rem; color:var(--yellow); }
+  .row { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:9px 0; border-bottom:1px solid var(--line); }
+  .pill { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:5px 9px; background:var(--card2); border:1px solid var(--line); color:var(--muted); font-size:.85rem; margin:3px; }
+  .bad { color:var(--accent); } .ok { color:var(--green); } .warn { color:var(--yellow); }
+  .events { max-height:360px; overflow:auto; display:flex; flex-direction:column; gap:8px; }
+  .event { padding:9px 10px; background:var(--card2); border-left:3px solid var(--blue); border-radius:6px; color:var(--muted); }
+  .tabs { display:flex; gap:8px; margin-bottom:10px; }
+  .tabs button { background:var(--card2); border:1px solid var(--line); }
+  .tabs button.active { background:var(--blue); }
+  #admin-toast { display:none; margin-top:10px; color:var(--green); font-weight:800; }
+  @media(max-width: 980px) { .layout { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
 
-<div id="login-screen" class="card" style="max-width:400px; margin:80px auto; text-align:center;">
-  <h1>🔐 Admin Login</h1>
-  <input type="password" id="pwd" style="padding:10px; width:100%; margin:10px 0;"/>
+<div id="login-screen" class="card" style="max-width:420px; margin:80px auto; text-align:center;">
+  <h1>Admin Login</h1>
+  <input type="password" id="pwd" placeholder="Haslo admina" style="margin:12px 0;"/>
   <button class="btn-accent" onclick="adminLogin()">Zaloguj</button>
+  <p id="login-error" class="bad" style="margin-top:10px;"></p>
 </div>
 
-<div id="main" style="display:none; max-width:900px; margin:0 auto;">
-  <h1>⚙️ Panel Sterowania</h1>
-  
-  <div class="card">
-    <h2>Status: <span id="status-phase" style="color:var(--blue)"></span></h2>
-    <div id="admin-controls" style="margin-top: 15px;">
-      
-      <div style="margin-bottom: 15px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; border: 1px solid #333;">
-        <label for="question-set" style="font-weight: bold; margin-bottom: 5px; display: block;">Wybierz pulę pytań do gry:</label>
-        
-        <select id="question-set" style="margin-top: 0; margin-bottom: 10px;">
-          <option value="set1">Zestaw 1 (Batony, Wakacje, Superbohaterowie...)</option>
-          <option value="set2">Zestaw 2 (Rano, Mundur, Damska torebka...)</option>
-          <option value="set3">Zestaw 3 (Dania, Porno, Polacy, Gry...)</option>
-          <option value="set4">Zestaw 4 (Szuflady, Państwa, Bajki...)</option>
-          <option value="set5">Zestaw 5 (Ruch lewostronny, Pary, Rock...)</option>
-          <option value="test">Zestaw Testowy (Odpowiedzi A, B, C...)</option>
-        </select>
-        
-        <button class="btn-green" onclick="socket.emit('startGame', { questionSet: document.getElementById('question-set').value })" style="width: 100%;">▶ Start Gry</button>
+<main id="main" class="layout" style="display:none;">
+  <section class="card wide">
+    <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+      <div>
+        <h1>Panel rezyserki</h1>
+        <div>Status: <strong id="status-phase" class="warn">-</strong></div>
+        <div id="admin-toast"></div>
       </div>
-
-      <button class="btn-blue" id="pause-btn" onclick="socket.emit('togglePause')">⏸ Pauza</button>
-      <button class="btn-gray" onclick="if(confirm('Zresetować grę?')) socket.emit('stopGame')">⏹ Stop / Reset</button>
-      <button class="btn-blue" onclick="socket.emit('startNextRound')">⏭ Następna Runda</button>
-
-      <div class="admin-action-grid">
-        <button class="btn-blue" onclick="socket.emit('adminSkipTurn')">Pomin ture</button>
-        <button class="btn-blue" onclick="socket.emit('adminFinishTimer')">Zakoncz timer</button>
-        <button class="btn-green" onclick="socket.emit('adminFinishVoting')">Zakoncz glosowanie</button>
-        <button class="btn-gray" id="undo-override-btn" onclick="socket.emit('adminUndoOverride')">Cofnij override</button>
-      </div>
+      <a href="/screen" target="_blank" style="color:var(--blue); font-weight:800;">Otworz ekran publiczny</a>
     </div>
-  </div>
+    <div class="status-grid">
+      <div class="metric"><span>Runda</span><strong id="metric-round">-</strong></div>
+      <div class="metric"><span>Aktualny gracz</span><strong id="metric-player">-</strong></div>
+      <div class="metric"><span>Gracze online</span><strong id="metric-online">-</strong></div>
+      <div class="metric"><span>Nastepna akcja</span><strong id="metric-next">-</strong></div>
+    </div>
+  </section>
 
-  <div class="card" id="host-status-panel">
-    <h3>Status glosowania</h3>
+  <section class="card">
+    <h2>Sterowanie</h2>
+    <label for="question-set">Zestaw pytan</label>
+    <select id="question-set" style="margin:8px 0 10px;"></select>
+    <div id="set-validation" style="margin-bottom:10px;"></div>
+    <div class="grid">
+      <button class="btn-green" onclick="startGame()">Start gry</button>
+      <button class="btn-blue" id="pause-btn" onclick="socket.emit('togglePause')">Pauza</button>
+      <button class="btn-gray" onclick="if(confirm('Zresetowac gre?')) socket.emit('stopGame')">Stop / reset</button>
+      <button class="btn-blue" onclick="socket.emit('startNextRound')">Nastepna runda</button>
+      <button class="btn-blue" onclick="socket.emit('adminSkipTurn')">Pomin ture</button>
+      <button class="btn-blue" onclick="socket.emit('adminFinishTimer')">Zakoncz timer</button>
+      <button class="btn-green" onclick="socket.emit('adminFinishVoting')">Zakoncz glosowanie</button>
+      <button class="btn-gray" id="undo-override-btn" onclick="socket.emit('adminUndoOverride')">Cofnij override</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Status glosowania</h2>
     <div id="voting-status">Brak aktywnego glosowania.</div>
-    <div id="admin-toast" style="display:none; margin-top:10px; color:var(--green); font-weight:bold;"></div>
-  </div>
+  </section>
 
-  <div class="card" id="override-panel" style="display:none; border:2px solid var(--accent);">
-    <h3 style="color:var(--accent);">⚠️ Odrzucono: <span id="ov-answer" style="color:#fff"></span></h3>
+  <section class="card" id="override-panel" style="display:none; border-color:var(--accent);">
+    <h2 class="bad">Odrzucona odpowiedz</h2>
     <p>Gracz: <strong id="ov-player"></strong></p>
-    <select id="override-select"></select>
-    <button class="btn-green" style="width:100%; margin-top:10px;" onclick="submitOverride()">✅ Zalicz tę odpowiedź</button>
-  </div>
+    <p>Wpisal: <strong id="ov-answer"></strong></p>
+    <select id="override-select" style="margin:10px 0;"></select>
+    <button class="btn-green" style="width:100%;" onclick="submitOverride()">Zalicz te odpowiedz</button>
+  </section>
 
-  <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
-    <div class="card">
-      <h3>Lista odpowiedzi (Live)</h3>
-      <div id="answers-preview"></div>
+  <section class="card">
+    <h2>Gracze</h2>
+    <div id="players-list"></div>
+  </section>
+
+  <section class="card">
+    <h2>Odpowiedzi live</h2>
+    <div id="answers-preview"></div>
+  </section>
+
+  <section class="card">
+    <h2>Historia zdarzen</h2>
+    <div id="event-log" class="events"></div>
+  </section>
+
+  <section class="card wide">
+    <div class="tabs">
+      <button id="tab-status" class="active" onclick="showAdminTab('status')">Podglad</button>
+      <button id="tab-editor" onclick="showAdminTab('editor')">Edytor pytan JSON</button>
     </div>
-    <div class="card">
-      <h3>Gracze (Kłamczuch: <span id="liar-name" style="color:var(--accent)"></span>)</h3>
-      <div id="players-list"></div>
+    <div id="tab-panel-status">
+      <p style="color:var(--muted);">Edytor zapisuje caly plik <code>data/questions.json</code>. Serwer waliduje, czy kazdy zestaw ma minimum 11 pytan i po 10 odpowiedzi.</p>
     </div>
-  </div>
-</div>
+    <div id="tab-panel-editor" style="display:none;">
+      <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+        <button class="btn-blue" onclick="loadQuestions()">Wczytaj pytania</button>
+        <button class="btn-green" onclick="saveQuestions()">Zapisz pytania</button>
+      </div>
+      <textarea id="questions-editor" spellcheck="false"></textarea>
+      <div id="editor-status" style="margin-top:10px;"></div>
+    </div>
+  </section>
+</main>
 
 <script>
 const socket = io();
+let adminPassword = '';
+let latestState = null;
+
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
-function addOption(select, value, text) {
-  const option = document.createElement('option');
-  option.value = value;
-  option.textContent = text;
-  select.appendChild(option);
-}
+
 function adminLogin() {
   const pwd = document.getElementById('pwd').value;
   fetch('/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password: pwd }) })
-  .then(r=>r.json()).then(d => {
-    if (d.ok) {
+    .then(r => r.json())
+    .then(d => {
+      if (!d.ok) throw new Error('Bledne haslo');
+      adminPassword = pwd;
       document.getElementById('login-screen').style.display = 'none';
-      document.getElementById('main').style.display = 'block';
+      document.getElementById('main').style.display = 'grid';
       socket.emit('joinAdmin', { password: pwd });
-    } else alert('Błędne hasło');
-  });
+      loadQuestions();
+    })
+    .catch(err => { document.getElementById('login-error').textContent = err.message; });
 }
+
+function startGame() {
+  socket.emit('startGame', { questionSet: document.getElementById('question-set').value });
+}
+
+function showAdminTab(tab) {
+  document.getElementById('tab-status').classList.toggle('active', tab === 'status');
+  document.getElementById('tab-editor').classList.toggle('active', tab === 'editor');
+  document.getElementById('tab-panel-status').style.display = tab === 'status' ? 'block' : 'none';
+  document.getElementById('tab-panel-editor').style.display = tab === 'editor' ? 'block' : 'none';
+}
+
+function renderQuestionSets(s) {
+  const select = document.getElementById('question-set');
+  const selected = select.value || 'set1';
+  select.innerHTML = '';
+  (s.questionSets || []).forEach(set => {
+    const option = document.createElement('option');
+    option.value = set.id;
+    option.textContent = `${set.label} (${set.questionCount} pyt.)${set.ok ? '' : ' - NIEPELNY'}`;
+    option.disabled = !set.ok;
+    select.appendChild(option);
+  });
+  if ([...select.options].some(o => o.value === selected && !o.disabled)) select.value = selected;
+  renderSelectedSetValidation();
+}
+
+function renderSelectedSetValidation() {
+  const box = document.getElementById('set-validation');
+  const set = latestState?.questionSets?.find(q => q.id === document.getElementById('question-set').value);
+  if (!set) { box.textContent = ''; return; }
+  box.innerHTML = set.ok
+    ? '<span class="pill ok">Zestaw gotowy do gry</span>'
+    : '<span class="pill bad">' + escapeHtml(set.errors[0] || 'Zestaw niepoprawny') + '</span>';
+}
+document.getElementById('question-set').addEventListener('change', renderSelectedSetValidation);
 
 socket.on('adminNotification', data => {
   const toast = document.getElementById('admin-toast');
-  if (!toast) return;
   toast.textContent = data.message || '';
   toast.style.display = toast.textContent ? 'block' : 'none';
-  if (toast.textContent) setTimeout(() => { toast.style.display = 'none'; }, 3500);
+  if (toast.textContent) setTimeout(() => { toast.style.display = 'none'; }, 4500);
 });
 
 socket.on('state', s => {
-  let statusText = s.phase;
-  if (s.phase === 'battlePrep') statusText += ' (PRZYGOTOWANIE DO BITWY)';
-  if (s.phase === 'battle') statusText += ' (BITWA O HASŁO!)';
-  
-  document.getElementById('status-phase').textContent = statusText + (s.isPaused ? ' (PAUZA)' : '');
-  
+  latestState = s;
+  document.getElementById('status-phase').textContent = s.phase + (s.isPaused ? ' (PAUZA)' : '');
+  document.getElementById('metric-round').textContent = s.director?.roundLabel || '-';
+  document.getElementById('metric-player').textContent = s.director?.currentPlayerName || '-';
+  document.getElementById('metric-online').textContent = `${s.director?.connectedCount ?? 0}/${s.director?.totalPlayers ?? 0}`;
+  document.getElementById('metric-next').textContent = s.director?.nextAction || '-';
+
   const pauseBtn = document.getElementById('pause-btn');
-  pauseBtn.textContent = s.isPaused ? '▶ Wznów' : '⏸ Pauza';
-  pauseBtn.style.background = s.isPaused ? 'var(--green)' : 'var(--blue)';
-  
-  document.getElementById('liar-name').textContent = s.liarName || 'Brak';
+  pauseBtn.textContent = s.isPaused ? 'Wznow' : 'Pauza';
+  pauseBtn.className = s.isPaused ? 'btn-green' : 'btn-blue';
 
+  renderQuestionSets(s);
+
+  const vs = s.votingStatus;
   const votingStatusEl = document.getElementById('voting-status');
-  if (votingStatusEl) {
-    const vs = s.votingStatus;
-    if (vs && vs.expectedVoteCount > 0 && ['voting', 'finalVoting'].includes(s.phase)) {
-      const missing = vs.missingVotes.length ? vs.missingVotes.map(escapeHtml).join(', ') : 'nikt';
-      votingStatusEl.innerHTML = 'Oddano: <strong>' + vs.voteCount + '/' + vs.expectedVoteCount + '</strong><br>Brakuje: <span class="status-pill">' + missing + '</span>';
-    } else {
-      votingStatusEl.textContent = 'Brak aktywnego glosowania.';
-    }
+  if (vs && vs.expectedVoteCount > 0 && ['voting', 'finalVoting'].includes(s.phase)) {
+    const missing = vs.missingVotes.length ? vs.missingVotes.map(escapeHtml).join(', ') : 'nikt';
+    votingStatusEl.innerHTML = `<div class="metric"><span>Oddano</span><strong>${vs.voteCount}/${vs.expectedVoteCount}</strong></div><p style="margin-top:10px;">Brakuje: <span class="pill">${missing}</span></p>`;
+  } else {
+    votingStatusEl.textContent = 'Brak aktywnego glosowania.';
   }
 
-  const undoBtn = document.getElementById('undo-override-btn');
-  if (undoBtn) undoBtn.disabled = !s.lastAdminOverride;
+  document.getElementById('undo-override-btn').disabled = !s.lastAdminOverride;
 
-  const preview = document.getElementById('answers-preview');
-  preview.innerHTML = '';
-  if (s.allAnswers) {
-    s.allAnswers.forEach((a, i) => {
-      const isRev = s.revealedAnswers?.some(r => r.index === i);
-      preview.innerHTML += `
-        <div class="player-row" style="color:${isRev ? 'var(--green)' : '#777'}; border:none; padding: 4px 0;">
-          <span>${i+1}. ${escapeHtml(a.text)}</span>
-          <span>${a.points} pkt</span>
-        </div>`;
-    });
-  }
+  document.getElementById('players-list').innerHTML = (s.players || []).map(p => `
+    <div class="row">
+      <span>${escapeHtml(p.name)} ${p.isLiar ? '<span class="pill bad">KLAMCZUCH</span>' : ''} <span class="pill">${p.connected ? 'ONLINE' : 'OFFLINE'}</span></span>
+      <span><strong class="warn">${p.score} pkt</strong> <button class="btn-accent" style="padding:6px 9px;" onclick="kickPlayer('${encodeURIComponent(p.name)}')">Wyrzuc</button></span>
+    </div>
+  `).join('');
 
-  document.getElementById('players-list').innerHTML = (s.players || []).map(p => {
-    const safeName = escapeHtml(p.name);
-    const encodedName = encodeURIComponent(p.name);
-    const powerupIcon = p.powerupUsed 
-        ? '<span class="powerup-icon powerup-used" title="PowerUP wykorzystany">🌟</span>' 
-        : '<span class="powerup-icon powerup-active" title="PowerUP aktywny">🌟</span>';
+  const answers = document.getElementById('answers-preview');
+  answers.innerHTML = '';
+  (s.allAnswers || []).forEach((a, i) => {
+    const isRev = s.revealedAnswers?.some(r => r.index === i);
+    answers.innerHTML += `<div class="row" style="color:${isRev ? 'var(--green)' : 'var(--muted)'};"><span>${i + 1}. ${escapeHtml(a.text)}</span><strong>${a.points} pkt</strong></div>`;
+  });
 
-    return `
-    <div class="player-row">
-      <span>${safeName} ${p.isLiar ? 'LIAR' : ''} ${powerupIcon} <small>(${p.connected ? 'ONLINE' : 'OFFLINE'})</small></span>
-      <div>
-        <span>${p.score} pkt</span>
-        <button class="btn-accent" style="padding: 5px 10px; font-size: 0.8rem; margin-left: 10px;" onclick="kickPlayerFromButton('${encodedName}')">Wyrzuc</button>
-      </div>
-    </div>`;
-  }).join('');
+  const events = document.getElementById('event-log');
+  events.innerHTML = (s.eventLog || []).map(e => `<div class="event">${escapeHtml(e.message)}<br><small>Runda ${e.round || '-'} / ${escapeHtml(e.phase || '')}</small></div>`).join('') || '<div class="event">Brak zdarzen.</div>';
 
   const ovPanel = document.getElementById('override-panel');
   if (s.lastWrongAnswer && (s.phase === 'round' || s.phase === 'battle')) {
@@ -186,24 +244,61 @@ socket.on('state', s => {
     document.getElementById('ov-player').textContent = s.lastWrongAnswer.playerName;
     document.getElementById('ov-answer').textContent = s.lastWrongAnswer.text;
     const sel = document.getElementById('override-select');
-    sel.innerHTML = '';
-    addOption(sel, '', '-- Wybierz poprawna --');
-    s.allAnswers.forEach((a, i) => {
-      if(!s.revealedAnswers?.some(r => r.index === i)) {
-        addOption(sel, i, `${a.text} (${a.points})`);
+    sel.innerHTML = '<option value="">-- Wybierz poprawna --</option>';
+    (s.allAnswers || []).forEach((a, i) => {
+      if (!s.revealedAnswers?.some(r => r.index === i)) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = `${a.text} (${a.points})`;
+        sel.appendChild(option);
       }
     });
-  } else ovPanel.style.display = 'none';
+  } else {
+    ovPanel.style.display = 'none';
+  }
 });
 
-function kickPlayerFromButton(encodedName) {
+function kickPlayer(encodedName) {
   const playerName = decodeURIComponent(encodedName);
   if (confirm(`Wyrzucic gracza ${playerName}?`)) socket.emit('kickPlayer', { playerName });
 }
 
 function submitOverride() {
   const idx = document.getElementById('override-select').value;
-  if(idx !== "") socket.emit('adminOverride', { answerIndex: parseInt(idx) });
+  if (idx !== '') socket.emit('adminOverride', { answerIndex: parseInt(idx, 10) });
+}
+
+function loadQuestions() {
+  if (!adminPassword) return;
+  fetch('/admin/questions', { headers: { 'x-admin-password': adminPassword } })
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('questions-editor').value = JSON.stringify(data, null, 2);
+      document.getElementById('editor-status').innerHTML = '<span class="ok">Wczytano pytania.</span>';
+    })
+    .catch(err => { document.getElementById('editor-status').innerHTML = '<span class="bad">' + escapeHtml(err.message) + '</span>'; });
+}
+
+function saveQuestions() {
+  let payload;
+  try {
+    payload = JSON.parse(document.getElementById('questions-editor').value);
+  } catch (err) {
+    document.getElementById('editor-status').innerHTML = '<span class="bad">JSON ma blad skladni: ' + escapeHtml(err.message) + '</span>';
+    return;
+  }
+  fetch('/admin/questions', {
+    method:'POST',
+    headers: { 'Content-Type':'application/json', 'x-admin-password': adminPassword },
+    body: JSON.stringify(payload)
+  })
+    .then(async r => {
+      const data = await r.json();
+      if (!r.ok || !data.ok) throw new Error((data.errors || ['Nie udalo sie zapisac.']).join(' | '));
+      document.getElementById('editor-status').innerHTML = '<span class="ok">Zapisano i zwalidowano pytania.</span>';
+      socket.emit('joinAdmin', { password: adminPassword });
+    })
+    .catch(err => { document.getElementById('editor-status').innerHTML = '<span class="bad">' + escapeHtml(err.message) + '</span>'; });
 }
 </script>
 </body>

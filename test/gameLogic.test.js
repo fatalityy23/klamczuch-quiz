@@ -24,6 +24,26 @@ test('matchAnswer skips revealed answers and rejects empty input', () => {
   assert.equal(matchAnswer('', answers, []), -1);
 });
 
+test('matchAnswer prefers exact short answers before fuzzy matches', () => {
+  const answers = [
+    { text: 'Anna', points: 300 },
+    { text: 'Ada', points: 200 },
+    { text: 'Ala', points: 100 }
+  ];
+  assert.equal(matchAnswer('ala', answers, []), 2);
+  assert.equal(matchAnswer('ada', answers, []), 1);
+  assert.equal(matchAnswer('ania', answers, []), 0);
+});
+
+test('matchAnswer accepts aliases', () => {
+  const answers = [
+    { text: 'Yves Saint Laurent', aliases: ['YSL', 'Saint Laurent'], points: 900 },
+    { text: 'Giorgio Armani', aliases: ['Armani'], points: 800 }
+  ];
+  assert.equal(matchAnswer('ysl', answers, []), 0);
+  assert.equal(matchAnswer('armani', answers, []), 1);
+});
+
 test('input sanitizers reject invalid names and oversized answers', () => {
   assert.equal(sanitizePlayerName('  Ala   Kot  ').name, 'Ala Kot');
   assert.equal(sanitizePlayerName('cwel123').ok, false);
@@ -69,6 +89,27 @@ test('applyVotingResults rewards correct voters and changes liar after catch con
   assert.equal(state.players.B.score, 800);
   assert.equal(state.players.A.score, 1100);
   assert.equal(state.players.C.score, 600);
+});
+
+test('applyVotingResults no longer penalizes wrong accusers and banks 500 for liar', () => {
+  const state = {
+    currentRound: 4,
+    liarName: 'B',
+    votes: { A: 'C', D: 'C', E: 'C' },
+    powerupsThisRound: { A: true },
+    hiddenLiarPoints: 0,
+    players: {
+      A: { score: 100, pointsSinceLastVote: 100 },
+      B: { score: 1000, pointsSinceLastVote: 400 },
+      C: { score: 100, pointsSinceLastVote: 100 },
+      D: { score: 100, pointsSinceLastVote: 100 },
+      E: { score: 100, pointsSinceLastVote: 100 }
+    }
+  };
+  const result = applyVotingResults(state);
+  assert.equal(result.innocentCaught, true);
+  assert.equal(state.players.A.score, 100);
+  assert.equal(state.hiddenLiarPoints, 500);
 });
 
 test('sortPlayersArray uses score and high-value answer tiebreakers', () => {
